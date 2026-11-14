@@ -5,9 +5,10 @@ A zero-backend, client-side capacity forecasting and scaling advisor built for r
 ## What It Does
 1. **Multi-Metric Time-Series Forecasting (`src/forecaster.js`)**
    - Forecasts **CPU**, **Memory**, and **Network** utilization over a configurable 6h–48h horizon using **Damped Holt Linear Trend Smoothing** auto-tuned via trailing-holdout **RMSE minimization**.
-   - Renders historical telemetry, dashed forecast trajectories, **95% confidence intervals**, SLA threshold danger zones, and exact **Time-to-Threshold Breach** markers.
+   - Renders historical telemetry, MAD residual anomaly spike rings, dashed forecast trajectories, **95% confidence intervals**, SLA threshold danger zones, and exact **Time-to-Threshold Breach** markers—with a toggle between **Focused** and **All 3 Metrics** comparison modes.
    - Displays live backtest accuracy (**MAE**, **RMSE**, holdout window size, tuned $\alpha/\beta$).
 2. **Joint Capacity Advisor (`analyzeClusterCapacity`)**
+   - Displays a **Resource Risk Matrix** comparing CPU, Memory, and Network peak forecasts against the SLA threshold, plus a **1-Click Simulate Recommended Fix** button that previews before/after headroom impact.
    - Evaluates CPU, Memory, and Network trajectories together to isolate distinct operational patterns:
      - **Memory Leak Signature** (steady CPU + climbing RAM $\rightarrow$ recommends rolling drain & heap profiling rather than blindly adding vCPUs)
      - **Compounding Compute & Network Surge** ($\rightarrow$ proactive replica pre-warming + CDN/compression offloading)

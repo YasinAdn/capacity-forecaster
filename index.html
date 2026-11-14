@@ -26,7 +26,7 @@
           <select id="scenarioSelect" aria-label="Select telemetry scenario"></select>
         </label>
 
-        <label class="btn btn-secondary file-btn" for="csvUpload">
+        <label class="btn btn-secondary file-btn" for="csvUpload" title="Upload or drag-and-drop a CSV anywhere">
           Upload CSV
           <input id="csvUpload" type="file" accept=".csv,text/csv" hidden />
         </label>
@@ -61,14 +61,18 @@
       <section class="panel chart-panel">
         <div class="panel-header">
           <div>
-            <h2 id="chartTitle">CPU Utilization · 12h Forecast</h2>
-            <p class="panel-sub">Click any resource card above to switch series · Hover chart to inspect intervals</p>
+            <div class="chart-title-row">
+              <h2 id="chartTitle">CPU Utilization · 12h Forecast</h2>
+              <span id="anomalyPill" class="anomaly-pill"></span>
+            </div>
+            <p class="panel-sub">Click any card above or switch mode · Drop any CSV file anywhere to analyze</p>
           </div>
-          <div class="legend">
-            <span class="leg-item"><i class="swatch solid"></i>Observed</span>
-            <span class="leg-item"><i class="swatch dashed"></i>Forecast</span>
-            <span class="leg-item"><i class="swatch band"></i>95% CI</span>
-            <span class="leg-item"><i class="swatch limit"></i>SLA Limit</span>
+          <div class="chart-controls-right">
+            <div class="segmented" role="group" aria-label="Chart display mode">
+              <button id="modeSingleBtn" type="button" class="seg-btn active">Focused</button>
+              <button id="modeCompareBtn" type="button" class="seg-btn">All 3 Metrics</button>
+            </div>
+            <div id="chartLegend" class="legend"></div>
           </div>
         </div>
 
@@ -84,6 +88,7 @@
             <h3>What-If Capacity Simulator</h3>
             <button id="resetSimBtn" type="button" class="btn-link">Reset defaults</button>
           </div>
+          <div id="simImpactBanner" class="sim-impact-banner" hidden></div>
           <div class="sliders-grid">
             <div class="slider-group">
               <div class="slider-top">
@@ -131,11 +136,17 @@
 
         <p id="advisorSummary" class="advisor-summary"></p>
 
+        <div id="riskMatrix" class="risk-matrix" aria-label="Resource risk matrix"></div>
+
+        <button id="applyFixBtn" type="button" class="btn btn-simulate-fix" hidden>
+          Simulate Recommended Fix
+        </button>
+
         <div id="advisorRecommendations" class="rec-list"></div>
 
         <div class="advisor-footer-note">
           <strong>Model Architecture:</strong> Damped Holt Linear Trend smoothing auto-tuned via
-          trailing-holdout RMSE minimization, paired with joint multi-metric signature classification.
+          trailing-holdout RMSE minimization, MAD residual anomaly flagging, and joint signature detection.
         </div>
       </aside>
     </main>

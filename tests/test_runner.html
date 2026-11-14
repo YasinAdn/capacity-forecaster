@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <title>Capacity Forecaster · Unit Tests</title>
   <style>
-    body { font-family: monospace; background: #0f172a; color: #e2e8f0; padding: 24px; }
-    .pass { color: #34d399; }
+    body { font-family: monospace; background: #09090b; color: #f5f5f4; padding: 24px; }
+    .pass { color: #10b981; }
     .fail { color: #fb7185; }
   </style>
 </head>
@@ -79,7 +79,7 @@
         const idleAnalysis = analyzeClusterCapacity(idleForecasts, { threshold: 85 });
         assert(idleAnalysis.overallStatus === 'OVER-PROVISIONED', `Detects OVER-PROVISIONED status (got: ${idleAnalysis.overallStatus})`);
 
-        // 6. Traffic surge detects compounding surge & replica scaling relieves breach
+        // 6. Traffic surge detects compounding surge & recommended replica scaling relieves breach
         const surgeScenario = await loadScenario('traffic-surge');
         const surgeForecasts = {
           cpu: forecastSeries(surgeScenario.rows.map((r) => ({ timestamp: r.timestamp, epochMs: r.epochMs, value: r.cpu })), { horizonHours: 12, threshold: 85 }),
@@ -89,13 +89,16 @@
         const surgeAnalysis = analyzeClusterCapacity(surgeForecasts, { threshold: 85 });
         assert(surgeForecasts.cpu.slopePerHour > 1.5, `Traffic surge CPU slope positive (got: ${surgeForecasts.cpu.slopePerHour.toFixed(2)})`);
         assert(surgeAnalysis.overallStatus === 'WARNING' || surgeAnalysis.overallStatus === 'CRITICAL', `Traffic surge flags warning/critical (got: ${surgeAnalysis.overallStatus})`);
+        assert(surgeAnalysis.recommendedAdd >= 1, `Suggests positive replica count to clear breach (got: +${surgeAnalysis.recommendedAdd})`);
 
-        const scaledCpu = forecastSeries(surgeScenario.rows.map((r) => ({ timestamp: r.timestamp, epochMs: r.epochMs, value: r.cpu })), { horizonHours: 12, threshold: 85, scaleFactor: 3 / 5 });
-        assert(scaledCpu.breach.expectedHours === null, 'Adding +2 replicas resolves CPU breach within 12h');
+        const scaledCpu = forecastSeries(surgeScenario.rows.map((r) => ({ timestamp: r.timestamp, epochMs: r.epochMs, value: r.cpu })), { horizonHours: 12, threshold: 85, scaleFactor: 3 / (3 + surgeAnalysis.recommendedAdd) });
+        assert(scaledCpu.breach.expectedHours === null, 'Applying recommended replicas resolves CPU breach within 12h');
 
-        // 7. NAB public dataset loads cleanly
+        // 7. NAB public dataset loads cleanly & detects real spike anomalies
         const nabScenario = await loadScenario('nab-public');
         assert(nabScenario.rows.length === 120, `Loads 120 NAB public rows (got: ${nabScenario.rows.length})`);
+        const nabCpuFc = forecastSeries(nabScenario.rows.map((r) => ({ timestamp: r.timestamp, epochMs: r.epochMs, value: r.cpu })), { horizonHours: 12, threshold: 85 });
+        assert(nabCpuFc.anomalies.length >= 2, `Detects historical spike anomalies in NAB trace (got: ${nabCpuFc.anomalies.length})`);
 
         // 8. Prompt builder outputs populated text
         const prompt = buildAdvisorPrompt(leakForecasts, leakAnalysis, {

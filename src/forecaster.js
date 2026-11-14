@@ -275,6 +275,7 @@ export function forecastSeries(points, options = {}) {
   const breach = estimateBreach(lastVal * scaleFactor, forecast, threshold, stepMinutes);
   const stepsPerHour = 60 / stepMinutes;
   const slopePerHour = effectiveStepSlope * scaleFactor * stepsPerHour;
+  const anomalies = detectHistoricalAnomalies(points, values, fullFit.fitted, scaleFactor);
 
   return {
     current: lastVal,
@@ -282,6 +283,7 @@ export function forecastSeries(points, options = {}) {
     slopePerHour,
     forecast,
     breach,
+    anomalies,
     backtest: {
       mae: bestParams.mae,
       rmse: bestParams.rmse,
@@ -291,6 +293,37 @@ export function forecastSeries(points, options = {}) {
     },
     sigma,
   };
+}
+
+/**
+ * Flags abrupt telemetry spikes using Median Absolute Deviation (MAD) over
+ * one-step Holt residuals so isolated spikes do not mask earlier precursors.
+ */
+function detectHistoricalAnomalies(points, values, fitted, scaleFactor) {
+  const residuals = [];
+  for (let i = 1; i < values.length; i += 1) {
+    residuals.push(values[i] - fitted[i]);
+  }
+  if (residuals.length < 6) return [];
+
+  const sortedAbs = residuals.map((r) => Math.abs(r)).sort((a, b) => a - b);
+  const medianAbs = sortedAbs[Math.floor(sortedAbs.length / 2)];
+  const madSigma = Math.max(1.2, 1.4826 * medianAbs);
+
+  const anomalies = [];
+  for (let i = 1; i < values.length; i += 1) {
+    const res = values[i] - fitted[i];
+    const zScore = res / madSigma;
+    if (Math.abs(zScore) >= 3.4 && Math.abs(res) >= 6) {
+      anomalies.push({
+        index: i,
+        timestamp: points[i].timestamp,
+        value: values[i] * scaleFactor,
+        zScore: Number(zScore.toFixed(1)),
+      });
+    }
+  }
+  return anomalies;
 }
 
 function geometricSum(phi, steps) {
@@ -534,13 +567,47 @@ export function analyzeClusterCapacity(forecasts, options = {}) {
     });
   }
 
+  const recommendedAdd = computeRecommendedReplicas(
+    entries,
+    threshold,
+    baseReplicas,
+    addedReplicas,
+    isMemoryLeak,
+    isIdleCluster
+  );
+
   return {
     overallStatus,
     signature,
     summary,
     recommendations,
     earliestBreach: expectedBreaches[0] || breachedNow[0] || null,
+    recommendedAdd,
   };
+}
+
+function computeRecommendedReplicas(
+  entries,
+  threshold,
+  baseReplicas,
+  addedReplicas,
+  isMemoryLeak,
+  isIdleCluster
+) {
+  if (isMemoryLeak || isIdleCluster) return 0;
+  const currentTotal = baseReplicas + addedReplicas;
+  const targetCeiling = Math.max(45, threshold - 6);
+  const computeNetUpper = Math.max(
+    entries.find((e) => e.key === 'cpu')?.data.breach.peakUpper || 0,
+    entries.find((e) => e.key === 'network')?.data.breach.peakUpper || 0
+  );
+  const computeNetPeak = Math.max(
+    entries.find((e) => e.key === 'cpu')?.data.breach.peakProjected || 0,
+    entries.find((e) => e.key === 'network')?.data.breach.peakProjected || 0
+  );
+  if (computeNetPeak < threshold && computeNetUpper < threshold) return 0;
+  const neededTotal = Math.ceil((currentTotal * Math.max(computeNetPeak, computeNetUpper)) / targetCeiling);
+  return clamp(neededTotal - baseReplicas, 1, 6);
 }
 
 /**
