@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Capacity Forecaster · Unit Tests</title>
+  <style>
+    body { font-family: monospace; background: #0f172a; color: #e2e8f0; padding: 24px; }
+    .pass { color: #34d399; }
+    .fail { color: #fb7185; }
+  </style>
+</head>
+<body>
+  <h1>Forecaster Engine Test Suite</h1>
+  <pre id="out">Running...</pre>
+  <script type="module">
+    import {
+      analyzeClusterCapacity,
+      buildAdvisorPrompt,
+      forecastSeries,
+      parseCsvTelemetry,
+    } from '../src/forecaster.js';
+    import { loadScenario } from '../src/datasets.js';
+
+    const results = [];
+    function assert(cond, label) {
+      if (!cond) throw new Error(`Assertion failed: ${label}`);
+      results.push(`PASS: ${label}`);
+    }
+
+    async function run() {
+      try {
+        // 1. Multi-metric CSV parsing
+        const multiCsv = ['timestamp,cpu,memory,network']
+          .concat(Array.from({ length: 20 }, (_, i) => `2026-11-14 10:${String(i * 5).padStart(2, '0')}:00,${40 + i},${50 + i * 0.5},${30 + i}`))
+          .join('\n');
+        const parsedMulti = parseCsvTelemetry(multiCsv);
+        assert(parsedMulti.rows.length === 20, 'Parses 20 multi-metric CSV rows');
+        assert(parsedMulti.metadata.stepMinutes === 5, 'Infers 5-min step interval');
+
+        // 2. Single-metric NAB CSV parsing with high-byte auto normalization
+        const singleCsv = ['timestamp,value']
+          .concat(Array.from({ length: 15 }, (_, i) => `2014-04-14 14:${String(i * 5).padStart(2, '0')}:00,${5000000 + i * 200000}`))
+          .join('\n');
+        const parsedSingle = parseCsvTelemetry(singleCsv);
+        assert(parsedSingle.metadata.mode === 'single-metric', 'Detects single-metric NAB CSV');
+        assert(parsedSingle.metadata.normalizedScale > 100, 'Normalizes large byte values to percentage');
+
+        // 3. Linear climbing trend predicts breach accurately
+        const risingPoints = Array.from({ length: 60 }, (_, i) => ({
+          timestamp: `2026-11-14 ${String(Math.floor((i * 5) / 60)).padStart(2, '0')}:${String((i * 5) % 60).padStart(2, '0')}:00`,
+          epochMs: Date.UTC(2026, 10, 14, 0, 0) + i * 5 * 60 * 1000,
+          value: 45 + i * 0.45,
+        }));
+        const risingFc = forecastSeries(risingPoints, {
+          horizonHours: 12,
+          stepMinutes: 5,
+          threshold: 85,
+        });
+        assert(risingFc.breach.expectedHours !== null && risingFc.breach.expectedHours > 0, 'Rising series predicts future threshold breach');
+        assert(risingFc.backtest.rmse >= 0 && Number.isFinite(risingFc.backtest.rmse), 'Computes finite backtest RMSE');
+
+        // 4. Memory leak scenario isolates Memory Leak Signature
+        const leakScenario = await loadScenario('memory-leak');
+        const leakForecasts = {
+          cpu: forecastSeries(leakScenario.rows.map((r) => ({ timestamp: r.timestamp, epochMs: r.epochMs, value: r.cpu })), { horizonHours: 12, threshold: 85 }),
+          memory: forecastSeries(leakScenario.rows.map((r) => ({ timestamp: r.timestamp, epochMs: r.epochMs, value: r.memory })), { horizonHours: 12, threshold: 85 }),
+          network: forecastSeries(leakScenario.rows.map((r) => ({ timestamp: r.timestamp, epochMs: r.epochMs, value: r.network })), { horizonHours: 12, threshold: 85 }),
+        };
+        const leakAnalysis = analyzeClusterCapacity(leakForecasts, { threshold: 85 });
+        assert(leakAnalysis.signature === 'Memory Leak Signature', `Detects Memory Leak Signature (got: ${leakAnalysis.signature})`);
+
+        // 5. Idle cluster triggers FinOps optimization
+        const idleScenario = await loadScenario('idle-cluster');
+        const idleForecasts = {
+          cpu: forecastSeries(idleScenario.rows.map((r) => ({ timestamp: r.timestamp, epochMs: r.epochMs, value: r.cpu })), { horizonHours: 12, threshold: 85 }),
+          memory: forecastSeries(idleScenario.rows.map((r) => ({ timestamp: r.timestamp, epochMs: r.epochMs, value: r.memory })), { horizonHours: 12, threshold: 85 }),
+          network: forecastSeries(idleScenario.rows.map((r) => ({ timestamp: r.timestamp, epochMs: r.epochMs, value: r.network })), { horizonHours: 12, threshold: 85 }),
+        };
+        const idleAnalysis = analyzeClusterCapacity(idleForecasts, { threshold: 85 });
+        assert(idleAnalysis.overallStatus === 'OVER-PROVISIONED', `Detects OVER-PROVISIONED status (got: ${idleAnalysis.overallStatus})`);
+
+        // 6. Traffic surge detects compounding surge & replica scaling relieves breach
+        const surgeScenario = await loadScenario('traffic-surge');
+        const surgeForecasts = {
+          cpu: forecastSeries(surgeScenario.rows.map((r) => ({ timestamp: r.timestamp, epochMs: r.epochMs, value: r.cpu })), { horizonHours: 12, threshold: 85 }),
+          memory: forecastSeries(surgeScenario.rows.map((r) => ({ timestamp: r.timestamp, epochMs: r.epochMs, value: r.memory })), { horizonHours: 12, threshold: 85 }),
+          network: forecastSeries(surgeScenario.rows.map((r) => ({ timestamp: r.timestamp, epochMs: r.epochMs, value: r.network })), { horizonHours: 12, threshold: 85 }),
+        };
+        const surgeAnalysis = analyzeClusterCapacity(surgeForecasts, { threshold: 85 });
+        assert(surgeForecasts.cpu.slopePerHour > 1.5, `Traffic surge CPU slope positive (got: ${surgeForecasts.cpu.slopePerHour.toFixed(2)})`);
+        assert(surgeAnalysis.overallStatus === 'WARNING' || surgeAnalysis.overallStatus === 'CRITICAL', `Traffic surge flags warning/critical (got: ${surgeAnalysis.overallStatus})`);
+
+        const scaledCpu = forecastSeries(surgeScenario.rows.map((r) => ({ timestamp: r.timestamp, epochMs: r.epochMs, value: r.cpu })), { horizonHours: 12, threshold: 85, scaleFactor: 3 / 5 });
+        assert(scaledCpu.breach.expectedHours === null, 'Adding +2 replicas resolves CPU breach within 12h');
+
+        // 7. NAB public dataset loads cleanly
+        const nabScenario = await loadScenario('nab-public');
+        assert(nabScenario.rows.length === 120, `Loads 120 NAB public rows (got: ${nabScenario.rows.length})`);
+
+        // 8. Prompt builder outputs populated text
+        const prompt = buildAdvisorPrompt(leakForecasts, leakAnalysis, {
+          scenarioTitle: leakScenario.title,
+          threshold: 85,
+          horizonHours: 12,
+          baseReplicas: 3,
+          addedReplicas: 0,
+        });
+        assert(prompt.includes('Memory Leak Signature') && prompt.includes('CPU Utilization'), 'Advisor prompt includes diagnosis and metrics');
+
+        document.getElementById('out').innerHTML = results.map((r) => `<span class="pass">${r}</span>`).join('\n') + `\n\nALL ${results.length} TESTS PASSED`;
+        document.body.dataset.testStatus = 'PASS';
+      } catch (err) {
+        document.getElementById('out').innerHTML = results.join('\n') + `\n<span class="fail">FAIL: ${err.message}</span>`;
+        document.body.dataset.testStatus = 'FAIL';
+      }
+    }
+
+    run();
+  </script>
+</body>
+</html>

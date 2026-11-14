@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Capacity Forecaster · AIOps Resource Prediction &amp; Scaling Advisor</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-block">
+        <div class="brand-row">
+          <span class="brand-mark" aria-hidden="true">◈</span>
+          <h1>Capacity Forecaster</h1>
+          <span id="globalStatusBadge" class="status-pill warning">LOADING…</span>
+        </div>
+        <p id="scenarioSubtitle" class="subtitle">
+          Predictive CPU, memory &amp; network telemetry forecasting with proactive scaling advice
+        </p>
+      </div>
+
+      <div class="toolbar">
+        <label class="select-wrap" for="scenarioSelect">
+          <span class="control-mini-label">Telemetry Source</span>
+          <select id="scenarioSelect" aria-label="Select telemetry scenario"></select>
+        </label>
+
+        <label class="btn btn-secondary file-btn" for="csvUpload">
+          Upload CSV
+          <input id="csvUpload" type="file" accept=".csv,text/csv" hidden />
+        </label>
+
+        <button id="downloadCsvBtn" type="button" class="btn btn-secondary">
+          Export CSV
+        </button>
+
+        <button id="openPromptBtn" type="button" class="btn btn-primary">
+          AI Advisor Prompt
+        </button>
+      </div>
+    </header>
+
+    <div class="meta-bar">
+      <span id="scenarioBadge" class="meta-badge">Simulated Workload</span>
+      <span id="sourceNote" class="meta-note"></span>
+      <a
+        id="datasetCitationLink"
+        class="meta-link"
+        href="https://github.com/numenta/NAB/tree/master/data/realAWSCloudwatch"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Public Dataset: Numenta NAB ↗
+      </a>
+    </div>
+
+    <section id="metricCards" class="metric-grid" aria-label="Resource utilization summary"></section>
+
+    <main class="workspace-grid">
+      <section class="panel chart-panel">
+        <div class="panel-header">
+          <div>
+            <h2 id="chartTitle">CPU Utilization · 12h Forecast</h2>
+            <p class="panel-sub">Click any resource card above to switch series · Hover chart to inspect intervals</p>
+          </div>
+          <div class="legend">
+            <span class="leg-item"><i class="swatch solid"></i>Observed</span>
+            <span class="leg-item"><i class="swatch dashed"></i>Forecast</span>
+            <span class="leg-item"><i class="swatch band"></i>95% CI</span>
+            <span class="leg-item"><i class="swatch limit"></i>SLA Limit</span>
+          </div>
+        </div>
+
+        <div class="chart-stage">
+          <div id="mainChart"></div>
+          <div id="chartTooltip" class="chart-tooltip" hidden></div>
+        </div>
+
+        <div id="backtestStrip" class="backtest-strip" aria-label="Holdout backtest accuracy"></div>
+
+        <div class="sim-panel">
+          <div class="sim-header">
+            <h3>What-If Capacity Simulator</h3>
+            <button id="resetSimBtn" type="button" class="btn-link">Reset defaults</button>
+          </div>
+          <div class="sliders-grid">
+            <div class="slider-group">
+              <div class="slider-top">
+                <label for="thresholdSlider">SLA Threshold</label>
+                <strong id="thresholdValue">85%</strong>
+              </div>
+              <input id="thresholdSlider" type="range" min="65" max="95" step="1" value="85" />
+            </div>
+
+            <div class="slider-group">
+              <div class="slider-top">
+                <label for="horizonSlider">Forecast Horizon</label>
+                <strong id="horizonValue">12h</strong>
+              </div>
+              <input id="horizonSlider" type="range" min="6" max="48" step="6" value="12" />
+            </div>
+
+            <div class="slider-group">
+              <div class="slider-top">
+                <label for="growthSlider">Traffic Growth</label>
+                <strong id="growthValue">1.0x</strong>
+              </div>
+              <input id="growthSlider" type="range" min="0.5" max="2.5" step="0.1" value="1.0" />
+            </div>
+
+            <div class="slider-group">
+              <div class="slider-top">
+                <label for="replicaSlider">Scale Out Replicas</label>
+                <strong id="replicaValue">0 (3 nodes)</strong>
+              </div>
+              <input id="replicaSlider" type="range" min="0" max="6" step="1" value="0" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="panel advisor-panel">
+        <div class="advisor-top">
+          <div>
+            <span class="eyebrow">Capacity Advisor · Joint Diagnostics</span>
+            <h2>Scaling &amp; Optimization Plan</h2>
+          </div>
+          <span id="advisorSignature" class="advisor-signature warning">Analyzing…</span>
+        </div>
+
+        <p id="advisorSummary" class="advisor-summary"></p>
+
+        <div id="advisorRecommendations" class="rec-list"></div>
+
+        <div class="advisor-footer-note">
+          <strong>Model Architecture:</strong> Damped Holt Linear Trend smoothing auto-tuned via
+          trailing-holdout RMSE minimization, paired with joint multi-metric signature classification.
+        </div>
+      </aside>
+    </main>
+
+    <footer class="footer">
+      <span>
+        Supports multi-metric CSVs (<code>timestamp,cpu,memory,network</code>) &amp; raw single-metric
+        <a href="https://github.com/numenta/NAB/tree/master/data/realAWSCloudwatch" target="_blank" rel="noopener noreferrer">Numenta NAB</a>
+        CloudWatch CSVs · Runs 100% client-side with zero API keys.
+      </span>
+    </footer>
+  </div>
+
+  <div id="promptModal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="promptModalTitle">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h3 id="promptModalTitle">Capacity Advisor Prompt Payload</h3>
+          <p class="panel-sub">Pre-populated with live telemetry, slopes &amp; breach predictions for any LLM</p>
+        </div>
+        <button id="closePromptBtn" type="button" class="btn btn-secondary">Close</button>
+      </div>
+      <textarea id="promptPreview" readonly rows="15"></textarea>
+      <div class="modal-actions">
+        <button id="copyPromptBtn" type="button" class="btn btn-primary">Copy Prompt to Clipboard</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>
