@@ -6,38 +6,38 @@ export const NAB_REPO_URL =
 export const SCENARIOS = [
   {
     id: 'traffic-surge',
-    title: 'Production Traffic Surge (Multi-Metric)',
-    badge: 'Simulated Workload',
-    subtitle: 'Compounding API traffic growth across CPU, Memory, and Network (10h @ 5-min intervals)',
+    title: 'eks-checkout-api · Traffic Surge (Live Stream)',
+    badge: 'PROMETHEUS · US-EAST-1',
+    subtitle: 'Compounding API ingress across CPU, RSS Memory & ENI Network (10h @ 5m resolution)',
     sourceNote:
-      'Synthetic multi-metric telemetry modeled with diurnal request waves and accelerating ingress load.',
+      'Cluster telemetry stream (3x c6i.2xlarge · 24 vCPU / 96 GiB) capturing diurnal peak + webhook acceleration.',
     datasetUrl: null,
   },
   {
     id: 'nab-public',
     title: 'AWS CloudWatch EC2 (Public NAB Dataset)',
-    badge: 'Public Dataset · NAB',
+    badge: 'PUBLIC BENCHMARK · NAB',
     subtitle: 'Real AWS EC2 CPU utilization + NetworkIn telemetry from Numenta Anomaly Benchmark',
     sourceNote:
-      'CPU: unmodified ec2_cpu_utilization_ac20cd.csv; Network: iio_us-east-1_i-a2eb1cd9_NetworkIn.csv (normalized to 10 MB/5-min cap); Memory: synthetic companion baseline.',
+      'CPU: unmodified ec2_cpu_utilization_ac20cd.csv; Network: iio_us-east-1_i-a2eb1cd9_NetworkIn.csv (10 MB/5m cap); Memory: companion baseline.',
     datasetUrl: NAB_REPO_URL,
   },
   {
     id: 'memory-leak',
-    title: 'Gradual Memory Leak (API Worker Tier)',
-    badge: 'Simulated Workload',
-    subtitle: 'Steady CPU & Network while heap retention drives Memory steadily toward OOM',
+    title: 'eks-billing-worker · Heap Retention Leak',
+    badge: 'PROMETHEUS · US-EAST-1',
+    subtitle: 'Flat compute/network utilization while unmanaged cache growth drives RSS toward OOM',
     sourceNote:
-      'Synthetic multi-metric trace isolating a slow worker memory leak (+~2.9%/hr) under flat CPU demand.',
+      'Cluster pod telemetry isolating slow worker memory growth (+~2.9%/hr) beneath flat RPS demand.',
     datasetUrl: null,
   },
   {
     id: 'idle-cluster',
-    title: 'Over-Provisioned Cluster (FinOps Audit)',
-    badge: 'Simulated Workload',
-    subtitle: 'Sustained low resource utilization highlighting instance right-sizing savings',
+    title: 'eks-staging-mesh · Over-Provisioned Fleet',
+    badge: 'FINOPS AUDIT · US-EAST-1',
+    subtitle: 'Sustained low compute headroom flagging right-sizing cost recovery opportunity',
     sourceNote:
-      'Synthetic low-utilization cluster telemetry demonstrating downward cost-optimization detection.',
+      'Idle multi-AZ node pool telemetry used to identify safe down-scaling & AWS spend recovery.',
     datasetUrl: null,
   },
 ];

@@ -18,6 +18,7 @@ import {
 } from './architect.js';
 import {
   ADVISOR_PRESETS,
+  buildRemediationCommand,
   compileCapacityAdvisorPrompt,
   evaluateAdvisorDecision,
 } from './advisorStudio.js';
@@ -48,8 +49,10 @@ const state = {
   lastForecasts: null,
   lastAnalysis: null,
   activeTab: 'forecaster',
+  liveStream: true,
   archMode: 'ai',
   archScenarioId: 'node-brownout',
+  archRpsOverride: null,
   advisorInputs: {
     cpu: 81,
     cpuSlope: 3.6,
@@ -64,6 +67,11 @@ const state = {
 
 const els = {
   scenarioSelect: document.getElementById('scenarioSelect'),
+  liveStreamBtn: document.getElementById('liveStreamBtn'),
+  liveStreamLabel: document.getElementById('liveStreamLabel'),
+  globalLiveDot: document.getElementById('globalLiveDot'),
+  opsSpendValue: document.getElementById('opsSpendValue'),
+  opsUtcClock: document.getElementById('opsUtcClock'),
   csvUpload: document.getElementById('csvUpload'),
   downloadCsvBtn: document.getElementById('downloadCsvBtn'),
   openPromptBtn: document.getElementById('openPromptBtn'),
@@ -114,6 +122,8 @@ const els = {
   archModeAiBtn: document.getElementById('archModeAiBtn'),
   archModeReactiveBtn: document.getElementById('archModeReactiveBtn'),
   chaosScenarioBtns: document.getElementById('chaosScenarioBtns'),
+  archRpsSlider: document.getElementById('archRpsSlider'),
+  archRpsVal: document.getElementById('archRpsVal'),
   architectKpis: document.getElementById('architectKpis'),
   archScenarioSummary: document.getElementById('archScenarioSummary'),
   archStateBadge: document.getElementById('archStateBadge'),
@@ -137,6 +147,9 @@ const els = {
   advReplicasVal: document.getElementById('advReplicasVal'),
   advDecisionPill: document.getElementById('advDecisionPill'),
   advJsonPreview: document.getElementById('advJsonPreview'),
+  copyCliBtn: document.getElementById('copyCliBtn'),
+  advCliPreview: document.getElementById('advCliPreview'),
+  advGuardrailsList: document.getElementById('advGuardrailsList'),
   copyStudioPromptBtn: document.getElementById('copyStudioPromptBtn'),
   advStudioPromptText: document.getElementById('advStudioPromptText'),
 };
@@ -219,13 +232,52 @@ function recomputeAndRender() {
   renderAdvisor(forecasts, analysis);
 }
 
+function formatHwUnits(key, pct, totalReplicas) {
+  if (key === 'cpu') {
+    const totalVcpu = totalReplicas * 8;
+    const used = (totalVcpu * pct) / 100;
+    return [`${used.toFixed(1)} / ${totalVcpu} vCPU`, `${totalReplicas}× c6i.2xlarge`];
+  }
+  if (key === 'memory') {
+    const totalGib = totalReplicas * 32;
+    const used = (totalGib * pct) / 100;
+    return [`${used.toFixed(1)} / ${totalGib} GiB RSS`, `heap ${Math.round(pct * 0.88)}% alloc`];
+  }
+  const totalGbps = totalReplicas * 10;
+  const used = (totalGbps * pct) / 100;
+  return [`${used.toFixed(2)} / ${totalGbps} Gbps`, `ENI rx+tx`];
+}
+
+function isStreamableScenario() {
+  return state.scenarioId !== 'nab-public' && state.scenarioId !== 'custom-csv';
+}
+
+function syncLiveStreamButton() {
+  const canStream = isStreamableScenario();
+  const isActive = canStream && state.liveStream;
+  els.liveStreamBtn.disabled = !canStream;
+  els.liveStreamBtn.classList.toggle('active', isActive);
+  els.liveStreamLabel.textContent = !canStream
+    ? 'STATIC TRACE'
+    : isActive
+    ? 'LIVE 2.5s'
+    : 'PAUSED';
+}
+
 function renderHeaderMeta(analysis) {
   els.scenarioBadge.textContent = state.scenarioBadge;
   els.scenarioSubtitle.textContent = state.scenarioSubtitle;
   els.sourceNote.textContent = state.sourceNote;
   els.datasetCitationLink.href = state.datasetUrl || NAB_REPO_URL;
 
-  els.statusBadge.className = `status-pill ${statusToClass(analysis.overallStatus)}`;
+  const totalNodes = BASE_REPLICAS + state.addedReplicas;
+  const monthlySpend = totalNodes * 216;
+  els.opsSpendValue.textContent = `$${monthlySpend.toLocaleString()}/mo · ${totalNodes} nodes`;
+
+  const sevClass = statusToClass(analysis.overallStatus);
+  els.statusBadge.className = `status-pill ${sevClass}`;
+  els.globalLiveDot.className = `live-dot ${sevClass === 'critical' ? 'crit' : sevClass === 'warning' ? 'warn' : ''}`;
+
   if (analysis.earliestBreach) {
     const eta = analysis.earliestBreach.data.breach.expectedHours;
     els.statusBadge.textContent =
@@ -235,10 +287,12 @@ function renderHeaderMeta(analysis) {
   } else {
     els.statusBadge.textContent = `${analysis.overallStatus} · ${analysis.signature}`;
   }
+  syncLiveStreamButton();
 }
 
 function renderMetricCards(forecasts) {
   els.metricCards.innerHTML = '';
+  const totalReplicas = BASE_REPLICAS + state.addedReplicas;
 
   for (const m of METRICS) {
     const fc = forecasts[m.key];
@@ -260,6 +314,8 @@ function renderMetricCards(forecasts) {
 
     const etaText = formatEtaText(fc.breach, state.horizonHours);
     const slopeSign = fc.slopePerHour >= 0 ? '+' : '';
+    const [hwLeft, hwRight] = formatHwUnits(m.key, fc.scaledCurrent, totalReplicas);
+    const fillPct = Math.max(0, Math.min(100, fc.scaledCurrent));
 
     card.innerHTML = `
       <div class="mc-top">
@@ -272,6 +328,14 @@ function renderMetricCards(forecasts) {
       <div class="mc-mid">
         <div class="mc-value">${fc.scaledCurrent.toFixed(1)}<span class="mc-unit">%</span></div>
         <div class="mc-slope">${slopeSign}${fc.slopePerHour.toFixed(2)}%/hr</div>
+      </div>
+      <div class="mc-hw-row">
+        <span>${hwLeft}</span>
+        <span>${hwRight}</span>
+      </div>
+      <div class="mc-gauge-track" aria-hidden="true">
+        <div class="mc-gauge-fill" style="width:${fillPct.toFixed(1)}%;background:${m.color}"></div>
+        <div class="mc-gauge-limit" style="left:${state.threshold}%"></div>
       </div>
       <div class="mc-spark" data-spark="${m.key}"></div>
       <div class="mc-bottom">
@@ -635,6 +699,12 @@ function wireEvents() {
     )
   );
 
+  els.liveStreamBtn.addEventListener('click', () => {
+    state.liveStream = !state.liveStream;
+    syncLiveStreamButton();
+    showToast(state.liveStream ? 'Live 2.5s telemetry polling active' : 'Telemetry stream paused');
+  });
+
   els.tabBtnForecaster.addEventListener('click', () => switchTab('forecaster'));
   els.tabBtnArchitect.addEventListener('click', () => switchTab('architect'));
   els.tabBtnAdvisor.addEventListener('click', () => switchTab('advisor'));
@@ -646,6 +716,12 @@ function wireEvents() {
 
   els.archModeReactiveBtn.addEventListener('click', () => {
     state.archMode = 'reactive';
+    renderArchitect();
+  });
+
+  els.archRpsSlider.addEventListener('input', () => {
+    const val = Number.parseInt(els.archRpsSlider.value, 10);
+    state.archRpsOverride = val;
     renderArchitect();
   });
 
@@ -661,6 +737,14 @@ function wireEvents() {
   }
 
   els.syncFromForecasterBtn.addEventListener('click', syncAdvisorFromForecaster);
+
+  els.copyCliBtn.addEventListener('click', () =>
+    copyTextToClipboard(
+      els.advCliPreview.textContent,
+      null,
+      'Kubernetes remediation CLI copied'
+    )
+  );
 
   els.copyStudioPromptBtn.addEventListener('click', () =>
     copyTextToClipboard(
@@ -711,9 +795,11 @@ async function copyTextToClipboard(text, fallbackInput, toastMsg) {
     await navigator.clipboard.writeText(text);
     showToast(toastMsg);
   } catch {
-    fallbackInput.select();
-    document.execCommand('copy');
-    showToast('Prompt selected & copied');
+    if (fallbackInput && typeof fallbackInput.select === 'function') {
+      fallbackInput.select();
+      document.execCommand('copy');
+    }
+    showToast(toastMsg);
   }
 }
 
@@ -741,6 +827,7 @@ function renderArchitect() {
     btn.textContent = scenario.label;
     btn.addEventListener('click', () => {
       state.archScenarioId = scenario.id;
+      state.archRpsOverride = null;
       renderArchitect();
     });
     els.chaosScenarioBtns.appendChild(btn);
@@ -749,7 +836,11 @@ function renderArchitect() {
   const sim = evaluateArchitectState({
     mode: state.archMode,
     scenarioId: state.archScenarioId,
+    rpsOverride: state.archRpsOverride,
   });
+
+  els.archRpsSlider.value = String(sim.scenario.rps);
+  els.archRpsVal.textContent = `${sim.scenario.rps.toLocaleString()} req/s`;
 
   const zeroDowntime = sim.droppedRequests === 0;
   els.archScenarioSummary.textContent = sim.scenario.summary;
@@ -810,13 +901,21 @@ function renderArchitect() {
         : entry.tag === 'DRAIN' || entry.tag === 'PRE-WARM'
         ? 'warning'
         : 'healthy';
+    const tsEl = document.createElement('span');
+    tsEl.className = 'arch-log-ts';
+    tsEl.textContent = entry.ts || '';
     const tagEl = document.createElement('span');
     tagEl.className = `arch-log-tag ${tone}`;
     tagEl.textContent = entry.tag;
+    const srcEl = document.createElement('span');
+    srcEl.className = 'arch-log-src';
+    srcEl.textContent = entry.source ? `[${entry.source}]` : '';
     const textEl = document.createElement('span');
     textEl.className = 'arch-log-text';
     textEl.textContent = entry.text;
+    row.appendChild(tsEl);
     row.appendChild(tagEl);
+    row.appendChild(srcEl);
     row.appendChild(textEl);
     els.architectLogList.appendChild(row);
   }
@@ -868,10 +967,63 @@ function renderAdvisorStudio() {
   els.advDecisionPill.textContent = result.decision;
   els.advJsonPreview.textContent = JSON.stringify(result, null, 2);
   els.advStudioPromptText.value = compileCapacityAdvisorPrompt(state.advisorInputs);
+  els.advCliPreview.textContent = `$ ${buildRemediationCommand(result)}`;
+
+  els.advGuardrailsList.innerHTML = '';
+  for (const g of result.guardrails_passed || []) {
+    const chip = document.createElement('span');
+    chip.className = 'guardrail-chip';
+    chip.textContent = `✓ ${g}`;
+    els.advGuardrailsList.appendChild(chip);
+  }
 }
 
 function clamp(val, min, max) {
   return Math.max(min, Math.min(max, val));
+}
+
+function formatShortIsoUtc(epochMs) {
+  const d = new Date(epochMs);
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  const mi = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}:00`;
+}
+
+function updateUtcClock() {
+  const now = new Date();
+  const hh = String(now.getUTCHours()).padStart(2, '0');
+  const mm = String(now.getUTCMinutes()).padStart(2, '0');
+  const ss = String(now.getUTCSeconds()).padStart(2, '0');
+  els.opsUtcClock.textContent = `${hh}:${mm}:${ss} UTC`;
+}
+
+function tickLiveStream() {
+  if (!state.liveStream || !isStreamableScenario() || state.activeTab !== 'forecaster') return;
+  if (state.rows.length < 8) return;
+  const n = state.rows.length;
+  const last = state.rows[n - 1];
+  const anchor = state.rows[n - 7];
+  const nextEpoch = (last.epochMs || Date.now()) + state.stepMinutes * 60 * 1000;
+  const phase = (tickLiveStream._tick = (tickLiveStream._tick || 0) + 1);
+  const flicker = Math.sin(phase * 0.95) * 0.18;
+  const nextVal = (key, mult = 1) => {
+    const vel = clamp(last[key] - anchor[key], -3, 3) / 18;
+    return Number(clamp(last[key] + vel + flicker * mult, 5, 98.5).toFixed(2));
+  };
+  state.rows = [
+    ...state.rows.slice(1),
+    {
+      timestamp: formatShortIsoUtc(nextEpoch),
+      epochMs: nextEpoch,
+      cpu: nextVal('cpu', 1),
+      memory: nextVal('memory', 0.35),
+      network: nextVal('network', 1.1),
+    },
+  ];
+  recomputeAndRender();
 }
 
 function syncAdvisorFromForecaster() {
@@ -895,10 +1047,13 @@ function syncAdvisorFromForecaster() {
 async function init() {
   populateScenarioDropdown();
   wireEvents();
+  updateUtcClock();
+  setInterval(updateUtcClock, 1000);
   renderArchitect();
   syncAdvisorSlidersUi();
   renderAdvisorStudio();
   await selectScenario('traffic-surge');
+  setInterval(tickLiveStream, 2500);
 }
 
 init();

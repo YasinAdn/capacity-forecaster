@@ -160,6 +160,21 @@ export function evaluateAdvisorDecision(inputs) {
   };
 }
 
+export function buildRemediationCommand(result) {
+  switch (result.decision) {
+    case 'ROLLING_RESTART_AND_PROFILE':
+      return `kubectl rollout restart deploy/checkout-api -n prod && kubectl top pods -n prod --sort-by=memory`;
+    case 'EDGE_CACHE_AND_SCALE_INGRESS':
+      return `kubectl patch hpa ingress-gw -n prod --patch '{"spec":{"minReplicas":${result.target_replicas}}}' && aws cloudfront create-invalidation --paths "/api/v2/catalog*"`;
+    case 'SCALE_OUT':
+      return `kubectl scale deploy/checkout-api -n prod --replicas=${result.target_replicas} && kubectl rollout status deploy/checkout-api -n prod`;
+    case 'RIGHT_SIZE_DOWN':
+      return `kubectl scale deploy/checkout-api -n prod --replicas=${result.target_replicas} # Preserves >=2 HA quorum`;
+    default:
+      return `# HOLD (${result.target_replicas} replicas active) — all signals inside SLA headroom`;
+  }
+}
+
 export function compileCapacityAdvisorPrompt(inputs) {
   const payload = {
     cluster_replicas: inputs.replicas,

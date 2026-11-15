@@ -67,8 +67,20 @@ function setupSvgFrame(width, height, pad, threshold, totalCount, timestamps) {
 
   const tickStep = Math.max(1, Math.floor(totalCount / 6));
   for (let i = 0; i < timestamps.length; i += tickStep) {
+    const x = xAt(i);
+    svg.appendChild(
+      svgEl('line', {
+        x1: x,
+        y1: pad.top,
+        x2: x,
+        y2: height - pad.bottom,
+        stroke: 'rgba(255, 255, 255, 0.045)',
+        'stroke-dasharray': '2 4',
+        'stroke-width': 1,
+      })
+    );
     const lbl = svgEl('text', {
-      x: xAt(i),
+      x,
       y: height - 12,
       'text-anchor': 'middle',
       class: 'chart-axis-text',
@@ -253,6 +265,29 @@ export function renderMainChart(container, tooltipEl, config) {
   }
 
   appendNowAndLimit(svg, pad, width, height, nowX, threshY, threshold);
+
+  if (historical.length > 0) {
+    const nowY = yAt(historical[historical.length - 1].value);
+    svg.appendChild(
+      svgEl('circle', {
+        cx: nowX,
+        cy: nowY,
+        r: 7,
+        fill: palette.area,
+        class: 'live-now-ring',
+      })
+    );
+    svg.appendChild(
+      svgEl('circle', {
+        cx: nowX,
+        cy: nowY,
+        r: 3.8,
+        fill: palette.line,
+        stroke: '#09090b',
+        'stroke-width': 1.5,
+      })
+    );
+  }
 
   if (breach.breachIndex > 0 && breach.expectedHours !== null) {
     const bIdx = historical.length + breach.breachIndex;
@@ -441,6 +476,29 @@ export function renderComparisonChart(container, tooltipEl, config) {
   }
 
   appendNowAndLimit(svg, pad, width, height, nowX, threshY, threshold);
+
+  if (historical.length > 0) {
+    const nowY = yAt(historical[historical.length - 1].value);
+    svg.appendChild(
+      svgEl('circle', {
+        cx: nowX,
+        cy: nowY,
+        r: 7,
+        fill: palette.area,
+        class: 'live-now-ring',
+      })
+    );
+    svg.appendChild(
+      svgEl('circle', {
+        cx: nowX,
+        cy: nowY,
+        r: 3.8,
+        fill: palette.line,
+        stroke: '#09090b',
+        'stroke-width': 1.5,
+      })
+    );
+  }
 
   const hoverLine = svgEl('line', {
     x1: 0,

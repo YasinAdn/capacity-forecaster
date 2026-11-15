@@ -116,15 +116,22 @@
         const reactiveDouble = evaluateArchitectState({ mode: 'reactive', scenarioId: 'double-fault' });
         assert(aiDouble.droppedRequests === 0 && aiDouble.availabilityPct === 100, 'AI Self-Balancing maintains 100% availability under double fault');
         assert(reactiveDouble.droppedRequests > 0 && reactiveDouble.availabilityPct < 100, 'Reactive Round-Robin drops requests under double fault');
+        const customBurst = evaluateArchitectState({ mode: 'ai', scenarioId: 'steady', rpsOverride: 2400 });
+        assert(customBurst.scenario.rps === 2400 && customBurst.nodes[3].status === 'active', 'Live RPS override promotes warm standby proactively');
 
-        // 10. Capacity Advisor Studio: decision engine & strict JSON prompt contract
-        const { ADVISOR_PRESETS, evaluateAdvisorDecision, compileCapacityAdvisorPrompt } = await import('../src/advisorStudio.js');
+        // 10. Capacity Advisor Studio: decision engine, CLI remediation & strict JSON prompt contract
+        const { ADVISOR_PRESETS, buildRemediationCommand, evaluateAdvisorDecision, compileCapacityAdvisorPrompt } = await import('../src/advisorStudio.js');
         const leakPreset = ADVISOR_PRESETS.find((p) => p.id === 'mem-leak');
         const spikePreset = ADVISOR_PRESETS.find((p) => p.id === 'cpu-spike');
         const idlePreset = ADVISOR_PRESETS.find((p) => p.id === 'idle-finops');
-        assert(evaluateAdvisorDecision(leakPreset).decision === 'ROLLING_RESTART_AND_PROFILE', 'Capacity Advisor avoids CPU scale-out on memory leak');
-        assert(evaluateAdvisorDecision(spikePreset).decision === 'SCALE_OUT', 'Capacity Advisor outputs SCALE_OUT on compute spike');
-        assert(evaluateAdvisorDecision(idlePreset).decision === 'RIGHT_SIZE_DOWN', 'Capacity Advisor outputs RIGHT_SIZE_DOWN on over-provisioned cluster');
+        const leakDecision = evaluateAdvisorDecision(leakPreset);
+        const spikeDecision = evaluateAdvisorDecision(spikePreset);
+        const idleDecision = evaluateAdvisorDecision(idlePreset);
+        assert(leakDecision.decision === 'ROLLING_RESTART_AND_PROFILE', 'Capacity Advisor avoids CPU scale-out on memory leak');
+        assert(spikeDecision.decision === 'SCALE_OUT', 'Capacity Advisor outputs SCALE_OUT on compute spike');
+        assert(idleDecision.decision === 'RIGHT_SIZE_DOWN', 'Capacity Advisor outputs RIGHT_SIZE_DOWN on over-provisioned cluster');
+        assert(buildRemediationCommand(leakDecision).includes('kubectl rollout restart'), 'Leak remediation generates kubectl rollout restart command');
+        assert(buildRemediationCommand(spikeDecision).includes('kubectl scale deploy/checkout-api'), 'Scale-out remediation generates kubectl scale command');
         const studioPrompt = compileCapacityAdvisorPrompt(spikePreset);
         assert(studioPrompt.includes('REQUIRED OUTPUT FORMAT (STRICT JSON ONLY)') && studioPrompt.includes('"cpu_pct": 81'), 'Studio prompt includes telemetry JSON and strict schema');
 

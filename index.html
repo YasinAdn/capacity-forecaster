@@ -3,25 +3,45 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AIOps Suite · Capacity Forecaster · Zero-Downtime Architect · Capacity Advisor</title>
+  <title>AIOps SRE Console · Capacity Forecaster · Zero-Downtime Architect · Capacity Advisor</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
   <div class="app-shell">
     <header class="topbar">
       <div class="brand-block">
+        <div class="ops-env-row">
+          <span class="live-chip">
+            <span id="globalLiveDot" class="live-dot"></span>
+            PROD // US-EAST-1
+          </span>
+          <span class="env-sep">·</span>
+          <span>CLUSTER: <code>eks-checkout-api</code></span>
+          <span class="env-sep">·</span>
+          <span>NODE POOL: <code>c6i.2xlarge</code></span>
+        </div>
         <div class="brand-row">
-          <span class="brand-mark" aria-hidden="true">◈</span>
-          <h1>AIOps Capacity &amp; Reliability Suite</h1>
-          <span id="globalStatusBadge" class="status-pill warning">LOADING…</span>
+          <h1>AIOps Operations &amp; Capacity Console</h1>
+          <span id="globalStatusBadge" class="status-pill warning">INITIALIZING…</span>
         </div>
         <p id="pillarSubtitle" class="subtitle">
-          Three distinct AIOps pillars: time-series forecasting, autonomous traffic self-balancing, and prompt-driven scaling decisions
+          Production resource forecasting, autonomous Envoy mesh load balancing, and deterministic SRE scaling policies
         </p>
+      </div>
+
+      <div class="ops-telemetry-strip" aria-label="Cluster environment readouts">
+        <div class="ops-readout">
+          <span class="ops-readout-label">Fleet Burn Rate</span>
+          <strong id="opsSpendValue" class="ops-readout-val">$648/mo · 3 nodes</strong>
+        </div>
+        <div class="ops-readout">
+          <span class="ops-readout-label">Telemetry Clock</span>
+          <strong id="opsUtcClock" class="ops-readout-val">--:--:-- UTC</strong>
+        </div>
       </div>
     </header>
 
-    <nav class="pillar-tabs" role="tablist" aria-label="AIOps project modules">
+    <nav class="pillar-tabs" role="tablist" aria-label="Operations modules">
       <button
         id="tabBtnForecaster"
         type="button"
@@ -33,7 +53,7 @@
         <span class="pt-num">01</span>
         <span class="pt-copy">
           <strong>Capacity Forecaster</strong>
-          <small>Time-Series Prediction &amp; Optimization</small>
+          <small>Predictive Resource Quotas &amp; FinOps</small>
         </span>
       </button>
 
@@ -48,7 +68,7 @@
         <span class="pt-num">02</span>
         <span class="pt-copy">
           <strong>Zero-Downtime Architect</strong>
-          <small>AI Self-Balancing &amp; Outage Prevention</small>
+          <small>Envoy Mesh Balancing &amp; Auto-Failover</small>
         </span>
       </button>
 
@@ -63,7 +83,7 @@
         <span class="pt-num">03</span>
         <span class="pt-copy">
           <strong>Capacity Advisor</strong>
-          <small>Metrics-to-Scaling Prompt Workbench</small>
+          <small>LLM Scaling Prompt &amp; CLI Policy</small>
         </span>
       </button>
     </nav>
@@ -72,17 +92,22 @@
     <div id="panel-forecaster" class="pillar-panel" role="tabpanel" aria-labelledby="tabBtnForecaster">
       <div class="sub-toolbar">
         <div class="sub-toolbar-info">
-          <span id="scenarioBadge" class="meta-badge">Simulated Workload</span>
+          <span id="scenarioBadge" class="meta-badge">PROMETHEUS · US-EAST-1</span>
           <span id="scenarioSubtitle" class="sub-toolbar-title"></span>
         </div>
         <div class="toolbar">
           <label class="select-wrap" for="scenarioSelect">
-            <span class="control-mini-label">Telemetry Source</span>
+            <span class="control-mini-label">Telemetry Stream</span>
             <select id="scenarioSelect" aria-label="Select telemetry scenario"></select>
           </label>
 
+          <button id="liveStreamBtn" type="button" class="btn btn-live active" title="Toggle live 2.5s telemetry polling">
+            <span class="live-dot-sm"></span>
+            <span id="liveStreamLabel">LIVE 2.5s</span>
+          </button>
+
           <label class="btn btn-secondary file-btn" for="csvUpload" title="Upload or drag-and-drop a CSV anywhere">
-            Upload CSV
+            Import CSV
             <input id="csvUpload" type="file" accept=".csv,text/csv" hidden />
           </label>
 
@@ -91,7 +116,7 @@
           </button>
 
           <button id="openPromptBtn" type="button" class="btn btn-primary">
-            Quick Prompt View
+            Inspect Prompt Payload
           </button>
         </div>
       </div>
@@ -105,11 +130,11 @@
           target="_blank"
           rel="noopener noreferrer"
         >
-          Public Dataset: Numenta NAB ↗
+          Public Benchmark: Numenta NAB ↗
         </a>
       </div>
 
-      <section id="metricCards" class="metric-grid" aria-label="Resource utilization summary"></section>
+      <section id="metricCards" class="metric-grid" aria-label="Cluster hardware utilization"></section>
 
       <main class="workspace-grid">
         <section class="panel chart-panel">
@@ -119,12 +144,12 @@
                 <h2 id="chartTitle">CPU Utilization · 12h Forecast</h2>
                 <span id="anomalyPill" class="anomaly-pill"></span>
               </div>
-              <p class="panel-sub">Click any card above or switch mode · Drop any CSV file anywhere to analyze</p>
+              <p class="panel-sub">Select any host metric card or compare all 3 signals · Drag-and-drop CSV supported</p>
             </div>
             <div class="chart-controls-right">
               <div class="segmented" role="group" aria-label="Chart display mode">
                 <button id="modeSingleBtn" type="button" class="seg-btn active">Focused</button>
-                <button id="modeCompareBtn" type="button" class="seg-btn">All 3 Metrics</button>
+                <button id="modeCompareBtn" type="button" class="seg-btn">All 3 Signals</button>
               </div>
               <div id="chartLegend" class="legend"></div>
             </div>
@@ -139,14 +164,14 @@
 
           <div class="sim-panel">
             <div class="sim-header">
-              <h3>What-If Capacity Simulator</h3>
+              <h3>Capacity &amp; Replica Headroom Modeler</h3>
               <button id="resetSimBtn" type="button" class="btn-link">Reset defaults</button>
             </div>
             <div id="simImpactBanner" class="sim-impact-banner" hidden></div>
             <div class="sliders-grid">
               <div class="slider-group">
                 <div class="slider-top">
-                  <label for="thresholdSlider">SLA Threshold</label>
+                  <label for="thresholdSlider">SLA Saturation Ceiling</label>
                   <strong id="thresholdValue">85%</strong>
                 </div>
                 <input id="thresholdSlider" type="range" min="65" max="95" step="1" value="85" />
@@ -154,7 +179,7 @@
 
               <div class="slider-group">
                 <div class="slider-top">
-                  <label for="horizonSlider">Forecast Horizon</label>
+                  <label for="horizonSlider">Prediction Window</label>
                   <strong id="horizonValue">12h</strong>
                 </div>
                 <input id="horizonSlider" type="range" min="6" max="48" step="6" value="12" />
@@ -162,7 +187,7 @@
 
               <div class="slider-group">
                 <div class="slider-top">
-                  <label for="growthSlider">Traffic Growth</label>
+                  <label for="growthSlider">Traffic Multiplier</label>
                   <strong id="growthValue">1.0x</strong>
                 </div>
                 <input id="growthSlider" type="range" min="0.5" max="2.5" step="0.1" value="1.0" />
@@ -170,7 +195,7 @@
 
               <div class="slider-group">
                 <div class="slider-top">
-                  <label for="replicaSlider">Scale Out Replicas</label>
+                  <label for="replicaSlider">Provisioned Replicas</label>
                   <strong id="replicaValue">0 (3 nodes)</strong>
                 </div>
                 <input id="replicaSlider" type="range" min="0" max="6" step="1" value="0" />
@@ -182,7 +207,7 @@
         <aside class="panel advisor-panel">
           <div class="advisor-top">
             <div>
-              <span class="eyebrow">Forecaster · Limit &amp; Optimization Engine</span>
+              <span class="eyebrow">TIME-SERIES ENGINE · BREACH DIAGNOSIS</span>
               <h2>Limit Diagnosis &amp; Optimizations</h2>
             </div>
             <span id="advisorSignature" class="advisor-signature warning">Analyzing…</span>
@@ -193,14 +218,14 @@
           <div id="riskMatrix" class="risk-matrix" aria-label="Resource risk matrix"></div>
 
           <button id="applyFixBtn" type="button" class="btn btn-simulate-fix" hidden>
-            Simulate Recommended Fix
+            Apply Recommended Scale-Out
           </button>
 
           <div id="advisorRecommendations" class="rec-list"></div>
 
           <div class="advisor-footer-note">
-            <strong>Forecasting Math:</strong> Damped Holt Linear Trend smoothing auto-tuned via
-            trailing-holdout RMSE minimization + MAD residual anomaly detection.
+            <strong>Engine:</strong> Damped Holt linear smoothing auto-tuned via trailing-holdout
+            RMSE minimization + MAD residual spike detection across live metrics.
           </div>
         </aside>
       </main>
@@ -209,15 +234,15 @@
     <!-- TAB 2: 02 · ZERO-DOWNTIME ARCHITECT -->
     <section id="panel-architect" class="pillar-panel" role="tabpanel" aria-labelledby="tabBtnArchitect" hidden>
       <div class="meta-bar">
-        <span class="meta-badge">AI Concept &amp; Live Routing Simulator</span>
+        <span class="meta-badge">DATA PLANE · ENVOY ADAPTIVE MESH v1.30</span>
         <span class="meta-note">
-          Autonomous load-balancing loop that senses tail-latency anomalies, drains degrading nodes, and pre-warms standby capacity before outages happen.
+          Autonomous load-balancing loop sensing sub-second p99 tail-latency drift, isolating degraded hosts via canary drain, and promoting warm standby pools with zero dropped traffic.
         </span>
       </div>
 
       <div class="architect-controls-bar panel">
         <div class="arch-control-group">
-          <span class="control-mini-label">Routing Strategy</span>
+          <span class="control-mini-label">Control Plane Mode</span>
           <div class="segmented" role="group" aria-label="Routing mode">
             <button id="archModeAiBtn" type="button" class="seg-btn active">AI Self-Balancing (Proactive)</button>
             <button id="archModeReactiveBtn" type="button" class="seg-btn">Reactive Round-Robin</button>
@@ -225,8 +250,16 @@
         </div>
 
         <div class="arch-control-group">
-          <span class="control-mini-label">Chaos &amp; Fault Injection</span>
+          <span class="control-mini-label">Fault &amp; Chaos Injection</span>
           <div id="chaosScenarioBtns" class="chaos-btn-row"></div>
+        </div>
+
+        <div class="arch-control-group arch-rps-group">
+          <div class="slider-top">
+            <label for="archRpsSlider" class="control-mini-label">Live Ingress Rate</label>
+            <strong id="archRpsVal">1,650 req/s</strong>
+          </div>
+          <input id="archRpsSlider" type="range" min="600" max="3600" step="50" value="1650" />
         </div>
       </div>
 
@@ -236,7 +269,7 @@
         <section class="panel">
           <div class="panel-header">
             <div>
-              <h2>Live Autonomous Traffic Topology</h2>
+              <h2>Production Mesh Topology &amp; AZ Telemetry</h2>
               <p id="archScenarioSummary" class="panel-sub"></p>
             </div>
             <span id="archStateBadge" class="status-pill healthy">ZERO DOWNTIME</span>
@@ -247,23 +280,23 @@
           <div class="control-loop-grid">
             <div class="loop-step">
               <span class="loop-idx">01 · SENSE</span>
-              <strong>Sub-Second Telemetry</strong>
-              <p>Tracks p99 queue depth, GC pause velocity, and saturation delta every 500ms.</p>
+              <strong>500ms Telemetry Poll</strong>
+              <p>Measures per-host queue depth, GC pause delta, and tail p99 before TCP exhaustion.</p>
             </div>
             <div class="loop-step">
               <span class="loop-idx">02 · SCORE</span>
-              <strong>Pre-5xx Risk Scoring</strong>
-              <p>Flags node brownouts via tail-latency drift before HTTP 502/504 errors start.</p>
+              <strong>EWMA Outlier Score</strong>
+              <p>Flags brownie hosts emitting slow tail responses prior to HTTP 502/504 errors.</p>
             </div>
             <div class="loop-step">
               <span class="loop-idx">03 · BALANCE</span>
-              <strong>Weighted Canary Drain</strong>
-              <p>Drops unhealthy node weight to 4% canary and shifts load across healthy peers.</p>
+              <strong>Canary Drain (4%)</strong>
+              <p>Cuts degraded upstream weight 33% → 4% and rebalances healthy peers cleanly.</p>
             </div>
             <div class="loop-step">
               <span class="loop-idx">04 · PREVENT</span>
-              <strong>Warm Standby Wakeup</strong>
-              <p>Promotes Standby-4 when active pool load crosses 78%—zero dropped requests.</p>
+              <strong>Warm Pool Failover</strong>
+              <p>Promotes pre-warmed AZ standby whenever pool utilization exceeds 78% cap.</p>
             </div>
           </div>
         </section>
@@ -271,14 +304,14 @@
         <aside class="panel">
           <div class="advisor-top">
             <div>
-              <span class="eyebrow">Control Loop · Autonomous Decisions</span>
-              <h2>Live Decision Audit Log</h2>
+              <span class="eyebrow">/VAR/LOG/ENVOY/ADAPTIVE-MESH.LOG</span>
+              <h2>Control Loop Event Stream</h2>
             </div>
           </div>
           <div id="architectLogList" class="arch-log-list"></div>
 
           <div class="advisor-footer-note">
-            <strong>Why It Differs from #1 (Forecaster):</strong> Instead of multi-hour capacity planning curves, Zero-Downtime Architect operates as a real-time closed-loop control plane that dynamically routes live RPS away from faults.
+            <strong>Operational Role:</strong> Sub-second runtime traffic self-balancing &amp; failover. Distinct from Capacity Forecaster (multi-hour prediction) and Capacity Advisor (LLM scaling prompt).
           </div>
         </aside>
       </div>
@@ -287,12 +320,12 @@
     <!-- TAB 3: 03 · CAPACITY ADVISOR -->
     <section id="panel-advisor" class="pillar-panel" role="tabpanel" aria-labelledby="tabBtnAdvisor" hidden>
       <div class="meta-bar">
-        <span class="meta-badge">Prompt Engineering Workbench</span>
+        <span class="meta-badge">RUNBOOK COMPILER · POLICY v2.4</span>
         <span class="meta-note">
-          Reusable LLM prompt template engineered to interpret resource metrics, enforce SRE guardrails, and output deterministic scaling JSON.
+          Guardrail-enforced prompt architecture converting cluster resource telemetry into strict JSON scaling decisions and executable kubectl actions.
         </span>
         <button id="syncFromForecasterBtn" type="button" class="btn-link">
-          Sync Live Metrics from 01 Forecaster ↻
+          Sync Cluster Telemetry from Forecaster ↻
         </button>
       </div>
 
@@ -300,8 +333,8 @@
         <section class="panel">
           <div class="panel-header">
             <div>
-              <h2>1. Metric Snapshot Inputs</h2>
-              <p class="panel-sub">Choose a test preset or tweak telemetry sliders to inspect how the prompt adapts</p>
+              <h2>Cluster Telemetry Input Snapshot</h2>
+              <p class="panel-sub">Select a production signature or tune live node signals to inspect the scaling policy</p>
             </div>
           </div>
 
@@ -335,25 +368,32 @@
           </div>
 
           <div class="prompt-output-header">
-            <h3>2. Expected Structured Scaling Output (JSON)</h3>
+            <h3>Validated Scaling Decision (JSON Schema)</h3>
             <span id="advDecisionPill" class="status-pill warning">SCALE_OUT</span>
           </div>
           <pre id="advJsonPreview" class="code-block"></pre>
+
+          <div class="prompt-output-header">
+            <h3>Generated Kubernetes Remediation Command</h3>
+            <button id="copyCliBtn" type="button" class="btn btn-secondary btn-xs">Copy CLI</button>
+          </div>
+          <pre id="advCliPreview" class="code-block code-block-cli"></pre>
+          <div id="advGuardrailsList" class="guardrail-pills" aria-label="Passed safety guardrails"></div>
         </section>
 
         <aside class="panel">
           <div class="panel-header">
             <div>
-              <span class="eyebrow">Capacity Advisor · System + User Prompt</span>
-              <h2>3. Engineered Prompt Template</h2>
+              <span class="eyebrow">policy/capacity-advisor-v2.4.prompt.md</span>
+              <h2>Engineered System + Telemetry Prompt</h2>
             </div>
             <button id="copyStudioPromptBtn" type="button" class="btn btn-primary">Copy Full Prompt</button>
           </div>
 
-          <textarea id="advStudioPromptText" readonly rows="21"></textarea>
+          <textarea id="advStudioPromptText" readonly rows="24"></textarea>
 
           <div class="advisor-footer-note">
-            <strong>Why It Differs from #1 &amp; #2:</strong> Capacity Advisor focuses purely on prompt architecture—encoding SRE safety rules, anti-flapping guardrails, and a strict JSON decision contract for any LLM.
+            <strong>Operational Role:</strong> Standalone prompt engineering contract ensuring deterministic JSON scaling outputs, anti-flapping cooldowns, and rollback clauses for LLMs.
           </div>
         </aside>
       </div>
@@ -361,9 +401,9 @@
 
     <footer class="footer">
       <span>
-        Supports multi-metric CSVs (<code>timestamp,cpu,memory,network</code>) &amp; raw single-metric
+        Ingests Prometheus / CloudWatch CSV streams &amp; public
         <a href="https://github.com/numenta/NAB/tree/master/data/realAWSCloudwatch" target="_blank" rel="noopener noreferrer">Numenta NAB</a>
-        CloudWatch CSVs · Runs 100% client-side with zero API keys.
+        traces · Runs 100% locally in browser with zero external API dependencies.
       </span>
     </footer>
   </div>
