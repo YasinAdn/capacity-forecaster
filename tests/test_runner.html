@@ -110,6 +110,24 @@
         });
         assert(prompt.includes('Memory Leak Signature') && prompt.includes('CPU Utilization'), 'Advisor prompt includes diagnosis and metrics');
 
+        // 9. Zero-Downtime Architect: AI Self-Balancing vs Reactive Round-Robin
+        const { evaluateArchitectState } = await import('../src/architect.js');
+        const aiDouble = evaluateArchitectState({ mode: 'ai', scenarioId: 'double-fault' });
+        const reactiveDouble = evaluateArchitectState({ mode: 'reactive', scenarioId: 'double-fault' });
+        assert(aiDouble.droppedRequests === 0 && aiDouble.availabilityPct === 100, 'AI Self-Balancing maintains 100% availability under double fault');
+        assert(reactiveDouble.droppedRequests > 0 && reactiveDouble.availabilityPct < 100, 'Reactive Round-Robin drops requests under double fault');
+
+        // 10. Capacity Advisor Studio: decision engine & strict JSON prompt contract
+        const { ADVISOR_PRESETS, evaluateAdvisorDecision, compileCapacityAdvisorPrompt } = await import('../src/advisorStudio.js');
+        const leakPreset = ADVISOR_PRESETS.find((p) => p.id === 'mem-leak');
+        const spikePreset = ADVISOR_PRESETS.find((p) => p.id === 'cpu-spike');
+        const idlePreset = ADVISOR_PRESETS.find((p) => p.id === 'idle-finops');
+        assert(evaluateAdvisorDecision(leakPreset).decision === 'ROLLING_RESTART_AND_PROFILE', 'Capacity Advisor avoids CPU scale-out on memory leak');
+        assert(evaluateAdvisorDecision(spikePreset).decision === 'SCALE_OUT', 'Capacity Advisor outputs SCALE_OUT on compute spike');
+        assert(evaluateAdvisorDecision(idlePreset).decision === 'RIGHT_SIZE_DOWN', 'Capacity Advisor outputs RIGHT_SIZE_DOWN on over-provisioned cluster');
+        const studioPrompt = compileCapacityAdvisorPrompt(spikePreset);
+        assert(studioPrompt.includes('REQUIRED OUTPUT FORMAT (STRICT JSON ONLY)') && studioPrompt.includes('"cpu_pct": 81'), 'Studio prompt includes telemetry JSON and strict schema');
+
         document.getElementById('out').innerHTML = results.map((r) => `<span class="pass">${r}</span>`).join('\n') + `\n\nALL ${results.length} TESTS PASSED`;
         document.body.dataset.testStatus = 'PASS';
       } catch (err) {

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Capacity Forecaster · AIOps Resource Prediction &amp; Scaling Advisor</title>
+  <title>AIOps Suite · Capacity Forecaster · Zero-Downtime Architect · Capacity Advisor</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
@@ -12,144 +12,352 @@
       <div class="brand-block">
         <div class="brand-row">
           <span class="brand-mark" aria-hidden="true">◈</span>
-          <h1>Capacity Forecaster</h1>
+          <h1>AIOps Capacity &amp; Reliability Suite</h1>
           <span id="globalStatusBadge" class="status-pill warning">LOADING…</span>
         </div>
-        <p id="scenarioSubtitle" class="subtitle">
-          Predictive CPU, memory &amp; network telemetry forecasting with proactive scaling advice
+        <p id="pillarSubtitle" class="subtitle">
+          Three distinct AIOps pillars: time-series forecasting, autonomous traffic self-balancing, and prompt-driven scaling decisions
         </p>
-      </div>
-
-      <div class="toolbar">
-        <label class="select-wrap" for="scenarioSelect">
-          <span class="control-mini-label">Telemetry Source</span>
-          <select id="scenarioSelect" aria-label="Select telemetry scenario"></select>
-        </label>
-
-        <label class="btn btn-secondary file-btn" for="csvUpload" title="Upload or drag-and-drop a CSV anywhere">
-          Upload CSV
-          <input id="csvUpload" type="file" accept=".csv,text/csv" hidden />
-        </label>
-
-        <button id="downloadCsvBtn" type="button" class="btn btn-secondary">
-          Export CSV
-        </button>
-
-        <button id="openPromptBtn" type="button" class="btn btn-primary">
-          AI Advisor Prompt
-        </button>
       </div>
     </header>
 
-    <div class="meta-bar">
-      <span id="scenarioBadge" class="meta-badge">Simulated Workload</span>
-      <span id="sourceNote" class="meta-note"></span>
-      <a
-        id="datasetCitationLink"
-        class="meta-link"
-        href="https://github.com/numenta/NAB/tree/master/data/realAWSCloudwatch"
-        target="_blank"
-        rel="noopener noreferrer"
+    <nav class="pillar-tabs" role="tablist" aria-label="AIOps project modules">
+      <button
+        id="tabBtnForecaster"
+        type="button"
+        role="tab"
+        aria-selected="true"
+        class="pillar-tab active"
+        data-tab="forecaster"
       >
-        Public Dataset: Numenta NAB ↗
-      </a>
+        <span class="pt-num">01</span>
+        <span class="pt-copy">
+          <strong>Capacity Forecaster</strong>
+          <small>Time-Series Prediction &amp; Optimization</small>
+        </span>
+      </button>
+
+      <button
+        id="tabBtnArchitect"
+        type="button"
+        role="tab"
+        aria-selected="false"
+        class="pillar-tab"
+        data-tab="architect"
+      >
+        <span class="pt-num">02</span>
+        <span class="pt-copy">
+          <strong>Zero-Downtime Architect</strong>
+          <small>AI Self-Balancing &amp; Outage Prevention</small>
+        </span>
+      </button>
+
+      <button
+        id="tabBtnAdvisor"
+        type="button"
+        role="tab"
+        aria-selected="false"
+        class="pillar-tab"
+        data-tab="advisor"
+      >
+        <span class="pt-num">03</span>
+        <span class="pt-copy">
+          <strong>Capacity Advisor</strong>
+          <small>Metrics-to-Scaling Prompt Workbench</small>
+        </span>
+      </button>
+    </nav>
+
+    <!-- TAB 1: 01 · CAPACITY FORECASTER -->
+    <div id="panel-forecaster" class="pillar-panel" role="tabpanel" aria-labelledby="tabBtnForecaster">
+      <div class="sub-toolbar">
+        <div class="sub-toolbar-info">
+          <span id="scenarioBadge" class="meta-badge">Simulated Workload</span>
+          <span id="scenarioSubtitle" class="sub-toolbar-title"></span>
+        </div>
+        <div class="toolbar">
+          <label class="select-wrap" for="scenarioSelect">
+            <span class="control-mini-label">Telemetry Source</span>
+            <select id="scenarioSelect" aria-label="Select telemetry scenario"></select>
+          </label>
+
+          <label class="btn btn-secondary file-btn" for="csvUpload" title="Upload or drag-and-drop a CSV anywhere">
+            Upload CSV
+            <input id="csvUpload" type="file" accept=".csv,text/csv" hidden />
+          </label>
+
+          <button id="downloadCsvBtn" type="button" class="btn btn-secondary">
+            Export CSV
+          </button>
+
+          <button id="openPromptBtn" type="button" class="btn btn-primary">
+            Quick Prompt View
+          </button>
+        </div>
+      </div>
+
+      <div class="meta-bar">
+        <span id="sourceNote" class="meta-note"></span>
+        <a
+          id="datasetCitationLink"
+          class="meta-link"
+          href="https://github.com/numenta/NAB/tree/master/data/realAWSCloudwatch"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Public Dataset: Numenta NAB ↗
+        </a>
+      </div>
+
+      <section id="metricCards" class="metric-grid" aria-label="Resource utilization summary"></section>
+
+      <main class="workspace-grid">
+        <section class="panel chart-panel">
+          <div class="panel-header">
+            <div>
+              <div class="chart-title-row">
+                <h2 id="chartTitle">CPU Utilization · 12h Forecast</h2>
+                <span id="anomalyPill" class="anomaly-pill"></span>
+              </div>
+              <p class="panel-sub">Click any card above or switch mode · Drop any CSV file anywhere to analyze</p>
+            </div>
+            <div class="chart-controls-right">
+              <div class="segmented" role="group" aria-label="Chart display mode">
+                <button id="modeSingleBtn" type="button" class="seg-btn active">Focused</button>
+                <button id="modeCompareBtn" type="button" class="seg-btn">All 3 Metrics</button>
+              </div>
+              <div id="chartLegend" class="legend"></div>
+            </div>
+          </div>
+
+          <div class="chart-stage">
+            <div id="mainChart"></div>
+            <div id="chartTooltip" class="chart-tooltip" hidden></div>
+          </div>
+
+          <div id="backtestStrip" class="backtest-strip" aria-label="Holdout backtest accuracy"></div>
+
+          <div class="sim-panel">
+            <div class="sim-header">
+              <h3>What-If Capacity Simulator</h3>
+              <button id="resetSimBtn" type="button" class="btn-link">Reset defaults</button>
+            </div>
+            <div id="simImpactBanner" class="sim-impact-banner" hidden></div>
+            <div class="sliders-grid">
+              <div class="slider-group">
+                <div class="slider-top">
+                  <label for="thresholdSlider">SLA Threshold</label>
+                  <strong id="thresholdValue">85%</strong>
+                </div>
+                <input id="thresholdSlider" type="range" min="65" max="95" step="1" value="85" />
+              </div>
+
+              <div class="slider-group">
+                <div class="slider-top">
+                  <label for="horizonSlider">Forecast Horizon</label>
+                  <strong id="horizonValue">12h</strong>
+                </div>
+                <input id="horizonSlider" type="range" min="6" max="48" step="6" value="12" />
+              </div>
+
+              <div class="slider-group">
+                <div class="slider-top">
+                  <label for="growthSlider">Traffic Growth</label>
+                  <strong id="growthValue">1.0x</strong>
+                </div>
+                <input id="growthSlider" type="range" min="0.5" max="2.5" step="0.1" value="1.0" />
+              </div>
+
+              <div class="slider-group">
+                <div class="slider-top">
+                  <label for="replicaSlider">Scale Out Replicas</label>
+                  <strong id="replicaValue">0 (3 nodes)</strong>
+                </div>
+                <input id="replicaSlider" type="range" min="0" max="6" step="1" value="0" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <aside class="panel advisor-panel">
+          <div class="advisor-top">
+            <div>
+              <span class="eyebrow">Forecaster · Limit &amp; Optimization Engine</span>
+              <h2>Limit Diagnosis &amp; Optimizations</h2>
+            </div>
+            <span id="advisorSignature" class="advisor-signature warning">Analyzing…</span>
+          </div>
+
+          <p id="advisorSummary" class="advisor-summary"></p>
+
+          <div id="riskMatrix" class="risk-matrix" aria-label="Resource risk matrix"></div>
+
+          <button id="applyFixBtn" type="button" class="btn btn-simulate-fix" hidden>
+            Simulate Recommended Fix
+          </button>
+
+          <div id="advisorRecommendations" class="rec-list"></div>
+
+          <div class="advisor-footer-note">
+            <strong>Forecasting Math:</strong> Damped Holt Linear Trend smoothing auto-tuned via
+            trailing-holdout RMSE minimization + MAD residual anomaly detection.
+          </div>
+        </aside>
+      </main>
     </div>
 
-    <section id="metricCards" class="metric-grid" aria-label="Resource utilization summary"></section>
+    <!-- TAB 2: 02 · ZERO-DOWNTIME ARCHITECT -->
+    <section id="panel-architect" class="pillar-panel" role="tabpanel" aria-labelledby="tabBtnArchitect" hidden>
+      <div class="meta-bar">
+        <span class="meta-badge">AI Concept &amp; Live Routing Simulator</span>
+        <span class="meta-note">
+          Autonomous load-balancing loop that senses tail-latency anomalies, drains degrading nodes, and pre-warms standby capacity before outages happen.
+        </span>
+      </div>
 
-    <main class="workspace-grid">
-      <section class="panel chart-panel">
-        <div class="panel-header">
-          <div>
-            <div class="chart-title-row">
-              <h2 id="chartTitle">CPU Utilization · 12h Forecast</h2>
-              <span id="anomalyPill" class="anomaly-pill"></span>
-            </div>
-            <p class="panel-sub">Click any card above or switch mode · Drop any CSV file anywhere to analyze</p>
-          </div>
-          <div class="chart-controls-right">
-            <div class="segmented" role="group" aria-label="Chart display mode">
-              <button id="modeSingleBtn" type="button" class="seg-btn active">Focused</button>
-              <button id="modeCompareBtn" type="button" class="seg-btn">All 3 Metrics</button>
-            </div>
-            <div id="chartLegend" class="legend"></div>
+      <div class="architect-controls-bar panel">
+        <div class="arch-control-group">
+          <span class="control-mini-label">Routing Strategy</span>
+          <div class="segmented" role="group" aria-label="Routing mode">
+            <button id="archModeAiBtn" type="button" class="seg-btn active">AI Self-Balancing (Proactive)</button>
+            <button id="archModeReactiveBtn" type="button" class="seg-btn">Reactive Round-Robin</button>
           </div>
         </div>
 
-        <div class="chart-stage">
-          <div id="mainChart"></div>
-          <div id="chartTooltip" class="chart-tooltip" hidden></div>
+        <div class="arch-control-group">
+          <span class="control-mini-label">Chaos &amp; Fault Injection</span>
+          <div id="chaosScenarioBtns" class="chaos-btn-row"></div>
         </div>
+      </div>
 
-        <div id="backtestStrip" class="backtest-strip" aria-label="Holdout backtest accuracy"></div>
+      <div class="architect-kpi-grid" id="architectKpis"></div>
 
-        <div class="sim-panel">
-          <div class="sim-header">
-            <h3>What-If Capacity Simulator</h3>
-            <button id="resetSimBtn" type="button" class="btn-link">Reset defaults</button>
+      <div class="workspace-grid">
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>Live Autonomous Traffic Topology</h2>
+              <p id="archScenarioSummary" class="panel-sub"></p>
+            </div>
+            <span id="archStateBadge" class="status-pill healthy">ZERO DOWNTIME</span>
           </div>
-          <div id="simImpactBanner" class="sim-impact-banner" hidden></div>
+
+          <div id="architectTopology" class="topology-stage"></div>
+
+          <div class="control-loop-grid">
+            <div class="loop-step">
+              <span class="loop-idx">01 · SENSE</span>
+              <strong>Sub-Second Telemetry</strong>
+              <p>Tracks p99 queue depth, GC pause velocity, and saturation delta every 500ms.</p>
+            </div>
+            <div class="loop-step">
+              <span class="loop-idx">02 · SCORE</span>
+              <strong>Pre-5xx Risk Scoring</strong>
+              <p>Flags node brownouts via tail-latency drift before HTTP 502/504 errors start.</p>
+            </div>
+            <div class="loop-step">
+              <span class="loop-idx">03 · BALANCE</span>
+              <strong>Weighted Canary Drain</strong>
+              <p>Drops unhealthy node weight to 4% canary and shifts load across healthy peers.</p>
+            </div>
+            <div class="loop-step">
+              <span class="loop-idx">04 · PREVENT</span>
+              <strong>Warm Standby Wakeup</strong>
+              <p>Promotes Standby-4 when active pool load crosses 78%—zero dropped requests.</p>
+            </div>
+          </div>
+        </section>
+
+        <aside class="panel">
+          <div class="advisor-top">
+            <div>
+              <span class="eyebrow">Control Loop · Autonomous Decisions</span>
+              <h2>Live Decision Audit Log</h2>
+            </div>
+          </div>
+          <div id="architectLogList" class="arch-log-list"></div>
+
+          <div class="advisor-footer-note">
+            <strong>Why It Differs from #1 (Forecaster):</strong> Instead of multi-hour capacity planning curves, Zero-Downtime Architect operates as a real-time closed-loop control plane that dynamically routes live RPS away from faults.
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- TAB 3: 03 · CAPACITY ADVISOR -->
+    <section id="panel-advisor" class="pillar-panel" role="tabpanel" aria-labelledby="tabBtnAdvisor" hidden>
+      <div class="meta-bar">
+        <span class="meta-badge">Prompt Engineering Workbench</span>
+        <span class="meta-note">
+          Reusable LLM prompt template engineered to interpret resource metrics, enforce SRE guardrails, and output deterministic scaling JSON.
+        </span>
+        <button id="syncFromForecasterBtn" type="button" class="btn-link">
+          Sync Live Metrics from 01 Forecaster ↻
+        </button>
+      </div>
+
+      <div class="workspace-grid advisor-workbench-grid">
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>1. Metric Snapshot Inputs</h2>
+              <p class="panel-sub">Choose a test preset or tweak telemetry sliders to inspect how the prompt adapts</p>
+            </div>
+          </div>
+
+          <div id="advisorPresetRow" class="chaos-btn-row" style="margin-bottom:14px;"></div>
+
           <div class="sliders-grid">
             <div class="slider-group">
-              <div class="slider-top">
-                <label for="thresholdSlider">SLA Threshold</label>
-                <strong id="thresholdValue">85%</strong>
-              </div>
-              <input id="thresholdSlider" type="range" min="65" max="95" step="1" value="85" />
+              <div class="slider-top"><label for="advCpuSlider">CPU Utilization</label><strong id="advCpuVal">81%</strong></div>
+              <input id="advCpuSlider" type="range" min="5" max="99" step="1" value="81" />
             </div>
-
             <div class="slider-group">
-              <div class="slider-top">
-                <label for="horizonSlider">Forecast Horizon</label>
-                <strong id="horizonValue">12h</strong>
-              </div>
-              <input id="horizonSlider" type="range" min="6" max="48" step="6" value="12" />
+              <div class="slider-top"><label for="advCpuSlopeSlider">CPU Slope (%/hr)</label><strong id="advCpuSlopeVal">+3.6%/hr</strong></div>
+              <input id="advCpuSlopeSlider" type="range" min="-2" max="8" step="0.1" value="3.6" />
             </div>
-
             <div class="slider-group">
-              <div class="slider-top">
-                <label for="growthSlider">Traffic Growth</label>
-                <strong id="growthValue">1.0x</strong>
-              </div>
-              <input id="growthSlider" type="range" min="0.5" max="2.5" step="0.1" value="1.0" />
+              <div class="slider-top"><label for="advMemSlider">Memory Utilization</label><strong id="advMemVal">59%</strong></div>
+              <input id="advMemSlider" type="range" min="5" max="99" step="1" value="59" />
             </div>
-
             <div class="slider-group">
-              <div class="slider-top">
-                <label for="replicaSlider">Scale Out Replicas</label>
-                <strong id="replicaValue">0 (3 nodes)</strong>
-              </div>
-              <input id="replicaSlider" type="range" min="0" max="6" step="1" value="0" />
+              <div class="slider-top"><label for="advMemSlopeSlider">Memory Slope (%/hr)</label><strong id="advMemSlopeVal">+0.7%/hr</strong></div>
+              <input id="advMemSlopeSlider" type="range" min="-2" max="8" step="0.1" value="0.7" />
+            </div>
+            <div class="slider-group">
+              <div class="slider-top"><label for="advNetSlider">Network Utilization</label><strong id="advNetVal">75%</strong></div>
+              <input id="advNetSlider" type="range" min="5" max="99" step="1" value="75" />
+            </div>
+            <div class="slider-group">
+              <div class="slider-top"><label for="advReplicasSlider">Active Replicas</label><strong id="advReplicasVal">4 nodes</strong></div>
+              <input id="advReplicasSlider" type="range" min="1" max="12" step="1" value="4" />
             </div>
           </div>
-        </div>
-      </section>
 
-      <aside class="panel advisor-panel">
-        <div class="advisor-top">
-          <div>
-            <span class="eyebrow">Capacity Advisor · Joint Diagnostics</span>
-            <h2>Scaling &amp; Optimization Plan</h2>
+          <div class="prompt-output-header">
+            <h3>2. Expected Structured Scaling Output (JSON)</h3>
+            <span id="advDecisionPill" class="status-pill warning">SCALE_OUT</span>
           </div>
-          <span id="advisorSignature" class="advisor-signature warning">Analyzing…</span>
-        </div>
+          <pre id="advJsonPreview" class="code-block"></pre>
+        </section>
 
-        <p id="advisorSummary" class="advisor-summary"></p>
+        <aside class="panel">
+          <div class="panel-header">
+            <div>
+              <span class="eyebrow">Capacity Advisor · System + User Prompt</span>
+              <h2>3. Engineered Prompt Template</h2>
+            </div>
+            <button id="copyStudioPromptBtn" type="button" class="btn btn-primary">Copy Full Prompt</button>
+          </div>
 
-        <div id="riskMatrix" class="risk-matrix" aria-label="Resource risk matrix"></div>
+          <textarea id="advStudioPromptText" readonly rows="21"></textarea>
 
-        <button id="applyFixBtn" type="button" class="btn btn-simulate-fix" hidden>
-          Simulate Recommended Fix
-        </button>
-
-        <div id="advisorRecommendations" class="rec-list"></div>
-
-        <div class="advisor-footer-note">
-          <strong>Model Architecture:</strong> Damped Holt Linear Trend smoothing auto-tuned via
-          trailing-holdout RMSE minimization, MAD residual anomaly flagging, and joint signature detection.
-        </div>
-      </aside>
-    </main>
+          <div class="advisor-footer-note">
+            <strong>Why It Differs from #1 &amp; #2:</strong> Capacity Advisor focuses purely on prompt architecture—encoding SRE safety rules, anti-flapping guardrails, and a strict JSON decision contract for any LLM.
+          </div>
+        </aside>
+      </div>
+    </section>
 
     <footer class="footer">
       <span>

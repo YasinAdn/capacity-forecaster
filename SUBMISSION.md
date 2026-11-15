@@ -1,13 +1,20 @@
 # Submission Checklist
 
 ## 1. Prototype Link
-Push `capacity-forecaster/` to GitHub and deploy directly on Vercel (no build step, no environment variables, no sign-ups required).
+- Live App (Vercel): https://capacity-forecaster.vercel.app
+- GitHub Repository: https://github.com/YasinAdn/capacity-forecaster
+- Pure static ES modules deployed directly with zero build step, zero API keys, and zero external sign-ups.
 
 ## 2. Public Dataset Link
-- Numenta Anomaly Benchmark (NAB) — Real AWS CloudWatch Corpus:
+- **Numenta Anomaly Benchmark (NAB)** — Real AWS CloudWatch Corpus:
   https://github.com/numenta/NAB/tree/master/data/realAWSCloudwatch
 
-## 3. Summary (~97 words)
-**Idea:** Capacity Forecaster is a zero-backend AIOps dashboard that predicts CPU, memory, and network saturation before outages occur and translates forecasts into scaling and cost-optimization decisions.
+## 3. Clear Differentiation Across the 3 Concepts
+1. **Capacity Forecaster (Tab 01):** Predicts **when** CPU, memory, and network will breach SLA thresholds (time-to-exhaustion + confidence intervals) using damped Holt smoothing over NAB AWS CloudWatch and mock CSV telemetry, and suggests optimizations.
+2. **Zero-Downtime Architect (Tab 02):** Demonstrates **how** an AI control plane self-balances live traffic in sub-seconds (`0 dropped req/s` vs reactive round-robin outages) via chaos testing, pre-5xx canary draining, and warm standby promotion.
+3. **Capacity Advisor (Tab 03):** Standalone **LLM prompt engineering workbench** translating current metric snapshots and hourly slopes into strict, guardrail-enforced JSON scaling decisions (`SCALE_OUT`, `ROLLING_RESTART_AND_PROFILE`, `EDGE_CACHE_AND_SCALE_INGRESS`, `RIGHT_SIZE_DOWN`, `HOLD`).
 
-**Approach:** Built a static web prototype deployable on Vercel using public AWS CloudWatch telemetry (Numenta NAB) alongside simulated stress scenarios (traffic surges, memory leaks, idle clusters) and custom CSV uploads. The engine applies damped Holt linear smoothing tuned via trailing-holdout RMSE minimization to estimate exact time-to-threshold breaches with 95% confidence bands. A joint multi-metric advisor isolates root causes (distinguishing compute surges from memory leaks or over-provisioning) and generates structured scaling recommendations.
+## 4. ~100-Word Summary
+**Idea:** An interactive AIOps Reliability Suite uniting Capacity Forecaster, Zero-Downtime Architect, and Capacity Advisor in one zero-backend web app.
+
+**Approach:** Rather than merging all concepts into one vague chart, each tab isolates its exact role. **Capacity Forecaster** uses real Numenta NAB AWS CloudWatch data and damped Holt smoothing with trailing-holdout backtesting to forecast exact saturation ETAs and FinOps savings. **Zero-Downtime Architect** proves proactive outage prevention under simulated chaos by draining degrading nodes before HTTP 5xx errors and promoting warm standbys with zero dropped requests. **Capacity Advisor** exposes a production-grade prompt template with strict SRE guardrails and deterministic JSON scaling contracts.

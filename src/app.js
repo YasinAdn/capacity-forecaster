@@ -11,6 +11,16 @@ import {
   renderMainChart,
   renderMiniSparkline,
 } from './chart.js';
+import {
+  CHAOS_SCENARIOS,
+  evaluateArchitectState,
+  renderArchitectTopology,
+} from './architect.js';
+import {
+  ADVISOR_PRESETS,
+  compileCapacityAdvisorPrompt,
+  evaluateAdvisorDecision,
+} from './advisorStudio.js';
 
 const METRICS = [
   { key: 'cpu', label: 'CPU Utilization', shortLabel: 'CPU', color: METRIC_COLORS.cpu.line },
@@ -37,6 +47,19 @@ const state = {
   addedReplicas: 0,
   lastForecasts: null,
   lastAnalysis: null,
+  activeTab: 'forecaster',
+  archMode: 'ai',
+  archScenarioId: 'node-brownout',
+  advisorInputs: {
+    cpu: 81,
+    cpuSlope: 3.6,
+    memory: 59,
+    memorySlope: 0.7,
+    network: 75,
+    networkSlope: 3.1,
+    replicas: 4,
+    slaLimit: 85,
+  },
 };
 
 const els = {
@@ -78,6 +101,44 @@ const els = {
   applyFixBtn: document.getElementById('applyFixBtn'),
   advisorRecommendations: document.getElementById('advisorRecommendations'),
   toast: document.getElementById('toast'),
+
+  // 3-Pillar Navigation Tabs
+  tabBtnForecaster: document.getElementById('tabBtnForecaster'),
+  tabBtnArchitect: document.getElementById('tabBtnArchitect'),
+  tabBtnAdvisor: document.getElementById('tabBtnAdvisor'),
+  panelForecaster: document.getElementById('panel-forecaster'),
+  panelArchitect: document.getElementById('panel-architect'),
+  panelAdvisor: document.getElementById('panel-advisor'),
+
+  // 02 · Zero-Downtime Architect
+  archModeAiBtn: document.getElementById('archModeAiBtn'),
+  archModeReactiveBtn: document.getElementById('archModeReactiveBtn'),
+  chaosScenarioBtns: document.getElementById('chaosScenarioBtns'),
+  architectKpis: document.getElementById('architectKpis'),
+  archScenarioSummary: document.getElementById('archScenarioSummary'),
+  archStateBadge: document.getElementById('archStateBadge'),
+  architectTopology: document.getElementById('architectTopology'),
+  architectLogList: document.getElementById('architectLogList'),
+
+  // 03 · Capacity Advisor Workbench
+  syncFromForecasterBtn: document.getElementById('syncFromForecasterBtn'),
+  advisorPresetRow: document.getElementById('advisorPresetRow'),
+  advCpuSlider: document.getElementById('advCpuSlider'),
+  advCpuVal: document.getElementById('advCpuVal'),
+  advCpuSlopeSlider: document.getElementById('advCpuSlopeSlider'),
+  advCpuSlopeVal: document.getElementById('advCpuSlopeVal'),
+  advMemSlider: document.getElementById('advMemSlider'),
+  advMemVal: document.getElementById('advMemVal'),
+  advMemSlopeSlider: document.getElementById('advMemSlopeSlider'),
+  advMemSlopeVal: document.getElementById('advMemSlopeVal'),
+  advNetSlider: document.getElementById('advNetSlider'),
+  advNetVal: document.getElementById('advNetVal'),
+  advReplicasSlider: document.getElementById('advReplicasSlider'),
+  advReplicasVal: document.getElementById('advReplicasVal'),
+  advDecisionPill: document.getElementById('advDecisionPill'),
+  advJsonPreview: document.getElementById('advJsonPreview'),
+  copyStudioPromptBtn: document.getElementById('copyStudioPromptBtn'),
+  advStudioPromptText: document.getElementById('advStudioPromptText'),
 };
 
 function showToast(msg) {
@@ -566,21 +627,277 @@ function wireEvents() {
     if (e.target === els.promptModal) els.promptModal.hidden = true;
   });
 
-  els.copyPromptBtn.addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(els.promptPreview.value);
-      showToast('Capacity Advisor prompt copied to clipboard');
-    } catch {
-      els.promptPreview.select();
-      document.execCommand('copy');
-      showToast('Prompt selected & copied');
-    }
+  els.copyPromptBtn.addEventListener('click', () =>
+    copyTextToClipboard(
+      els.promptPreview.value,
+      els.promptPreview,
+      'Capacity Advisor prompt copied to clipboard'
+    )
+  );
+
+  els.tabBtnForecaster.addEventListener('click', () => switchTab('forecaster'));
+  els.tabBtnArchitect.addEventListener('click', () => switchTab('architect'));
+  els.tabBtnAdvisor.addEventListener('click', () => switchTab('advisor'));
+
+  els.archModeAiBtn.addEventListener('click', () => {
+    state.archMode = 'ai';
+    renderArchitect();
   });
+
+  els.archModeReactiveBtn.addEventListener('click', () => {
+    state.archMode = 'reactive';
+    renderArchitect();
+  });
+
+  for (const spec of ADV_SLIDERS) {
+    els[spec.slider].addEventListener('input', () => {
+      const raw = spec.isFloat
+        ? Number.parseFloat(els[spec.slider].value)
+        : Number.parseInt(els[spec.slider].value, 10);
+      state.advisorInputs[spec.key] = raw;
+      els[spec.label].textContent = spec.fmt(raw);
+      renderAdvisorStudio();
+    });
+  }
+
+  els.syncFromForecasterBtn.addEventListener('click', syncAdvisorFromForecaster);
+
+  els.copyStudioPromptBtn.addEventListener('click', () =>
+    copyTextToClipboard(
+      els.advStudioPromptText.value,
+      els.advStudioPromptText,
+      'Engineered Capacity Advisor prompt copied'
+    )
+  );
+}
+
+const TAB_MAP = {
+  forecaster: () => ({ btn: els.tabBtnForecaster, panel: els.panelForecaster }),
+  architect: () => ({ btn: els.tabBtnArchitect, panel: els.panelArchitect }),
+  advisor: () => ({ btn: els.tabBtnAdvisor, panel: els.panelAdvisor }),
+};
+
+const ADV_SLIDERS = [
+  { key: 'cpu', slider: 'advCpuSlider', label: 'advCpuVal', fmt: (v) => `${v}%` },
+  {
+    key: 'cpuSlope',
+    slider: 'advCpuSlopeSlider',
+    label: 'advCpuSlopeVal',
+    fmt: (v) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%/hr`,
+    isFloat: true,
+  },
+  { key: 'memory', slider: 'advMemSlider', label: 'advMemVal', fmt: (v) => `${v}%` },
+  {
+    key: 'memorySlope',
+    slider: 'advMemSlopeSlider',
+    label: 'advMemSlopeVal',
+    fmt: (v) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%/hr`,
+    isFloat: true,
+  },
+  { key: 'network', slider: 'advNetSlider', label: 'advNetVal', fmt: (v) => `${v}%` },
+  { key: 'replicas', slider: 'advReplicasSlider', label: 'advReplicasVal', fmt: (v) => `${v} nodes` },
+];
+
+const DECISION_TONE = {
+  SCALE_OUT: 'warning',
+  EDGE_CACHE_AND_SCALE_INGRESS: 'warning',
+  ROLLING_RESTART_AND_PROFILE: 'critical',
+  RIGHT_SIZE_DOWN: 'finops',
+  HOLD: 'healthy',
+};
+
+async function copyTextToClipboard(text, fallbackInput, toastMsg) {
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast(toastMsg);
+  } catch {
+    fallbackInput.select();
+    document.execCommand('copy');
+    showToast('Prompt selected & copied');
+  }
+}
+
+function switchTab(tabId) {
+  if (!TAB_MAP[tabId]) return;
+  state.activeTab = tabId;
+  for (const [id, getRefs] of Object.entries(TAB_MAP)) {
+    const { btn, panel } = getRefs();
+    const isActive = id === tabId;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-selected', String(isActive));
+    panel.hidden = !isActive;
+  }
+}
+
+function renderArchitect() {
+  els.archModeAiBtn.classList.toggle('active', state.archMode === 'ai');
+  els.archModeReactiveBtn.classList.toggle('active', state.archMode === 'reactive');
+
+  els.chaosScenarioBtns.innerHTML = '';
+  for (const scenario of CHAOS_SCENARIOS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `chaos-btn ${scenario.id === state.archScenarioId ? 'active' : ''}`;
+    btn.textContent = scenario.label;
+    btn.addEventListener('click', () => {
+      state.archScenarioId = scenario.id;
+      renderArchitect();
+    });
+    els.chaosScenarioBtns.appendChild(btn);
+  }
+
+  const sim = evaluateArchitectState({
+    mode: state.archMode,
+    scenarioId: state.archScenarioId,
+  });
+
+  const zeroDowntime = sim.droppedRequests === 0;
+  els.archScenarioSummary.textContent = sim.scenario.summary;
+  els.archStateBadge.className = `status-pill ${zeroDowntime ? 'healthy' : 'critical'}`;
+  els.archStateBadge.textContent = zeroDowntime
+    ? 'ZERO DOWNTIME · 0 DROPS'
+    : `OUTAGE · ${sim.droppedRequests} REQ/S DROPPED`;
+
+  const standbyNode = sim.nodes[3];
+  const kpis = [
+    {
+      label: 'Availability',
+      value: `${sim.availabilityPct}%`,
+      sub: zeroDowntime ? 'SLA 100% protected' : 'HTTP 502/504 errors',
+      tone: zeroDowntime ? 'healthy' : 'critical',
+    },
+    {
+      label: 'Dropped Requests',
+      value: `${sim.droppedRequests} req/s`,
+      sub: `Out of ${sim.scenario.rps} req/s ingress`,
+      tone: zeroDowntime ? 'healthy' : 'critical',
+    },
+    {
+      label: 'Tail Latency (p99)',
+      value: `${sim.p99LatencyMs} ms`,
+      sub: sim.p99LatencyMs <= 80 ? 'Within <100ms SLO' : 'Queue saturation spike',
+      tone: sim.p99LatencyMs <= 80 ? 'healthy' : 'warning',
+    },
+    {
+      label: 'Standby-4 Node',
+      value: standbyNode.status === 'active' ? 'ACTIVE' : 'WARM RESERVE',
+      sub: `${standbyNode.rps} req/s · ${standbyNode.loadPct}% cap`,
+      tone: standbyNode.status === 'active' ? 'warning' : 'healthy',
+    },
+  ];
+
+  els.architectKpis.innerHTML = kpis
+    .map(
+      (k) => `
+        <div class="arch-kpi-card ${k.tone}">
+          <div class="arch-kpi-label">${k.label}</div>
+          <div class="arch-kpi-value">${k.value}</div>
+          <div class="arch-kpi-sub">${k.sub}</div>
+        </div>
+      `
+    )
+    .join('');
+
+  renderArchitectTopology(els.architectTopology, sim);
+
+  els.architectLogList.innerHTML = '';
+  for (const entry of sim.logs) {
+    const row = document.createElement('div');
+    row.className = 'arch-log-item';
+    const tone =
+      entry.tag === 'OUTAGE' || entry.tag === 'ALERT'
+        ? 'critical'
+        : entry.tag === 'DRAIN' || entry.tag === 'PRE-WARM'
+        ? 'warning'
+        : 'healthy';
+    const tagEl = document.createElement('span');
+    tagEl.className = `arch-log-tag ${tone}`;
+    tagEl.textContent = entry.tag;
+    const textEl = document.createElement('span');
+    textEl.className = 'arch-log-text';
+    textEl.textContent = entry.text;
+    row.appendChild(tagEl);
+    row.appendChild(textEl);
+    els.architectLogList.appendChild(row);
+  }
+}
+
+function syncAdvisorSlidersUi() {
+  for (const spec of ADV_SLIDERS) {
+    const val = state.advisorInputs[spec.key];
+    els[spec.slider].value = String(val);
+    els[spec.label].textContent = spec.fmt(val);
+  }
+}
+
+function renderAdvisorStudio() {
+  els.advisorPresetRow.innerHTML = '';
+  const cur = state.advisorInputs;
+  for (const preset of ADVISOR_PRESETS) {
+    const isMatch =
+      cur.cpu === preset.cpu &&
+      cur.cpuSlope === preset.cpuSlope &&
+      cur.memory === preset.memory &&
+      cur.memorySlope === preset.memorySlope &&
+      cur.network === preset.network &&
+      cur.replicas === preset.replicas;
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `chaos-btn ${isMatch ? 'active' : ''}`;
+    btn.textContent = preset.label;
+    btn.addEventListener('click', () => {
+      state.advisorInputs = {
+        cpu: preset.cpu,
+        cpuSlope: preset.cpuSlope,
+        memory: preset.memory,
+        memorySlope: preset.memorySlope,
+        network: preset.network,
+        networkSlope: preset.networkSlope,
+        replicas: preset.replicas,
+        slaLimit: preset.slaLimit,
+      };
+      syncAdvisorSlidersUi();
+      renderAdvisorStudio();
+    });
+    els.advisorPresetRow.appendChild(btn);
+  }
+
+  const result = evaluateAdvisorDecision(state.advisorInputs);
+  els.advDecisionPill.className = `status-pill ${DECISION_TONE[result.decision] || 'warning'}`;
+  els.advDecisionPill.textContent = result.decision;
+  els.advJsonPreview.textContent = JSON.stringify(result, null, 2);
+  els.advStudioPromptText.value = compileCapacityAdvisorPrompt(state.advisorInputs);
+}
+
+function clamp(val, min, max) {
+  return Math.max(min, Math.min(max, val));
+}
+
+function syncAdvisorFromForecaster() {
+  if (!state.lastForecasts) return;
+  const { cpu, memory, network } = state.lastForecasts;
+  state.advisorInputs = {
+    cpu: clamp(Math.round(cpu.scaledCurrent), 5, 99),
+    cpuSlope: clamp(Number(cpu.slopePerHour.toFixed(1)), -2, 8),
+    memory: clamp(Math.round(memory.scaledCurrent), 5, 99),
+    memorySlope: clamp(Number(memory.slopePerHour.toFixed(1)), -2, 8),
+    network: clamp(Math.round(network.scaledCurrent), 5, 99),
+    networkSlope: clamp(Number(network.slopePerHour.toFixed(1)), -2, 8),
+    replicas: clamp(BASE_REPLICAS + state.addedReplicas, 1, 12),
+    slaLimit: state.threshold,
+  };
+  syncAdvisorSlidersUi();
+  renderAdvisorStudio();
+  showToast('Synced live telemetry from 01 · Capacity Forecaster');
 }
 
 async function init() {
   populateScenarioDropdown();
   wireEvents();
+  renderArchitect();
+  syncAdvisorSlidersUi();
+  renderAdvisorStudio();
   await selectScenario('traffic-surge');
 }
 
